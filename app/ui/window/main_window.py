@@ -53,8 +53,10 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'style_panel'):
              self.style_panel.style_changed.connect(self.update_text_box_style)
         
-        self.batch_handler = None 
+        self.batch_handler = None
 
+    # --- NO OTHER CHANGES TO main_window.py ---
+    
     def _load_filter_settings(self):
         self.min_text_height = int(self.settings.value("min_text_height", 40))
         self.max_text_height = int(self.settings.value("max_text_height", 100))
@@ -228,7 +230,7 @@ class MainWindow(QMainWindow):
 
     def show_settings_dialog(self):
         dialog = SettingsDialog(self)
-        if dialog.exec_():
+        if dialog.exec():
             self._load_filter_settings()
             self.update_shortcut()
 
@@ -635,7 +637,7 @@ class MainWindow(QMainWindow):
             dont_show_cb.setStyleSheet(ADVANCED_CHECK_STYLES)
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No) 
             msg.setDefaultButton(QMessageBox.No)
-            response = msg.exec_()
+            response = msg.exec()
             if dont_show_cb.isChecked(): self.settings.setValue("show_delete_warning", "false")
             proceed = response == QMessageBox.Yes
         if not proceed: return
@@ -659,7 +661,7 @@ class MainWindow(QMainWindow):
             api_key, model_name, self.model.ocr_results, list(self.model.profiles.keys()), self
         )
         dialog.translation_complete.connect(self.handle_translation_completed)
-        dialog.exec_()
+        dialog.exec()
 
     def handle_translation_completed(self, profile_name, translated_data):
         try:
