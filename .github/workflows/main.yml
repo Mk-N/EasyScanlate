@@ -32,6 +32,7 @@ jobs:
         with:
           script-name: main.py
           mode: standalone
+          windows-console-mode: disable
           include-data-dir: 'OCR/model=OCR/model'
           mingw64: true
           enable-plugins: pyside6
@@ -78,6 +79,7 @@ jobs:
         with:
           script-name: main.py
           mode: standalone
+          windows-console-mode: disable
           mingw64: true
           enable-plugins: pyside6
           windows-icon-from-ico: assets/app_icon.ico
@@ -122,6 +124,7 @@ jobs:
         with:
           script-name: dev/updater/updater.py
           mode: onefile
+          windows-console-mode: disable
           enable-plugins: pyside6
           mingw64: true
           company-name: "Liiesl"
