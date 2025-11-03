@@ -1,32 +1,24 @@
 # what i need
 
-## done (milestone 0.2.0 release)
+## done (milestone 0.2.1 release)
 
   #### addition
-  - add context fill.
-  - implement hide text
-  - add ocr override dialog confirmation
-  - add custom state aware button class
+  - custom error msg box
+    - link to github issue report if any error
+  - 
 
   #### fixes
-  - fix long loading time on startup (torch import)
-  - fix stitched img not saved as stitched
-  - fix too much recent project
+  - 
 
   #### modification
-  - make app sync to be on its own manager
-  - make menu button to be layout class
-  - make further ocr to override old ocr
-  - change translation format to xml like
-  - make manual ocr overlay presistent
+  - 
 
 ## currently in progress
-  - testing final updater
+  - 
 
 ## not yet started
 
   #### addition
-  - add mica effect
   - add manual textbox insertion
   - implement watermarking
   - textbox styles
@@ -39,6 +31,17 @@
   - 2 pane view of manhwa (for original and translated view side by side)(layers and overlays can be individualy toggle off and on)
   - add tool bar on the right
   - add direct retranslate on main window
+  - add more items for ocr export
+    - ocr tagging
+    - pdf
+    - docs
+  - add window pos and size saves (remember from last session)
+  - theme 
+    - light mode
+    - contrast
+    - background gradient
+  - split ocr result
+  - add z index and reordering of textbox on the same img
 
   #### fixes
   - fix skew/free transform
@@ -65,6 +68,8 @@
     - free form selection (pen tools/draw)
     - switch on/off from selection
     - undo/redo
-  - 
+  - make font to be from system
   - deprecate result widgets and table (be replaced by direct text editing on image textbox)
     - it should be merged into translation feature cause it still needed there
+  - briefly highlight sync ocr
+  - enhance ocr result merging
