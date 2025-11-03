@@ -14,7 +14,7 @@
   - 
 
 ## currently in progress
-  - 
+  - fix import/export plaintext ocr/translation data
 
 ## not yet started
 
@@ -48,7 +48,6 @@
   - fix find and replace bugs :
     - roman character not working for some reason if there are other profile in other type of character (non roman)
     - profile creation/switching crashes the app when on find
-  - fix import/export plaintext ocr/translation data
 
   #### modification
   - rework how gradient work
