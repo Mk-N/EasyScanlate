@@ -1,9 +1,12 @@
 import os
 import ast
 import json
+import traceback
+import sys
 from PySide6.QtWidgets import QMessageBox, QFileDialog
 from PySide6.QtCore import QRectF
 from app.ui.components import ResizableImageLabel
+from app.ui.dialogs.error_dialog import ErrorDialog
 import zipfile
 
 def export_translated_images_to_zip(image_paths_with_names, output_path):
@@ -52,9 +55,12 @@ def export_ocr_results(self):
                 return
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(self.ocr_results, f, ensure_ascii=False, indent=4)
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", "OCR results exported successfully in JSON format.")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Error", f"Failed to export: {str(e)}", traceback_text)
 
     elif export_type == 'for-translate':
         content = "<!-- type: for-translate -->\n\n"
@@ -102,9 +108,12 @@ def export_ocr_results(self):
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", "OCR results exported successfully in Markdown format.")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Error", f"Failed to export: {str(e)}", traceback_text)
 
 def import_translation_file(self):
     """Import translation from an exported file (JSON for Master, Markdown for For-Translate)."""
@@ -138,6 +147,7 @@ def import_translation_file(self):
 
             self.ocr_results = new_ocr_results
             self.update_results_table()
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", "Master file imported successfully!\n"
                                 f"Loaded {len(new_ocr_results)} OCR entries.")
 
@@ -199,15 +209,19 @@ def import_translation_file(self):
                     print(f"Warning: No translation found for entry in '{filename}'")
 
             self.update_results_table()
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", "Translation imported and updated successfully!")
 
         else:
             raise ValueError("Unsupported file format. Please provide a JSON or Markdown file.")
 
     except Exception as e:
-        QMessageBox.critical(
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        ErrorDialog.critical(
             self, "Error",
-            f"Failed to import translation:\n{str(e)}"
+            f"Failed to import translation:\n{str(e)}",
+            traceback_text
         )
 
 def export_rendered_images(self):
@@ -283,11 +297,14 @@ def export_rendered_images(self):
         saved_path, success = export_translated_images_to_zip(translated_images, export_path)
 
         if success:
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", f"Exported to:\n{saved_path}")
         else:
             QMessageBox.critical(self, "Error", "Export failed")
     except Exception as e:
-        QMessageBox.critical(self, "Render Error", f"Failed to render image: {str(e)}")
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        ErrorDialog.critical(self, "Render Error", f"Failed to render image: {str(e)}", traceback_text)
         import traceback
         traceback.print_exc()
     finally:

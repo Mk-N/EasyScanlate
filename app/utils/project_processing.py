@@ -58,7 +58,9 @@ def new_project(self):
             launch_project(self, project_path)
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create project: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Error", f"Failed to create project: {str(e)}", traceback_text)
 
 def open_project(self):
     file, _ = QFileDialog.getOpenFileName(self, "Open Project", "", "Manga Translation Files (*.mmtl)")
@@ -112,7 +114,9 @@ def import_from_wfwf(self):
             
             launch_project(self, project_path)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create project: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Error", f"Failed to create project: {str(e)}", traceback_text)
         finally:
             rmtree(temp_dir)
             if 'corrected_dir' in locals() and os.path.exists(corrected_dir):

@@ -4,7 +4,10 @@ from PySide6.QtWidgets import ( QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
 from PySide6.QtCore import Qt, QSize, Signal, QEvent, QTimer
 from PySide6.QtGui import QShortcut, QKeySequence
 import qtawesome as qta
+import traceback
+import sys
 from app.core.translations import TranslationThread, _get_text_for_profile_static, generate_for_translate_content, generate_retranslate_content, import_translation_file_content
+from app.ui.dialogs.error_dialog import ErrorDialog
 
 from app.ui.dialogs import GEMINI_MODELS_WITH_INFO
 from assets import ADVANCED_CHECK_STYLES
@@ -677,6 +680,7 @@ class TranslationWindow(QDialog):
             selected_items = [key for key, widgets in self.row_widgets.items() if widgets['checkbox'].isChecked()]
 
             if not selected_items:
+                # Information message - keep QMessageBox.information for non-error cases
                 QMessageBox.information(self, "No Selection", "Something went wrong. No rows are selected for re-translation.")
                 return
 
@@ -740,7 +744,7 @@ class TranslationWindow(QDialog):
         self.progress_bar.setVisible(False)
         self.current_gemini_bubble_label = None
         self._add_chat_bubble("Error", error_message)
-        QMessageBox.critical(self, "Translation Error", error_message)
+        ErrorDialog.critical(self, "Translation Error", error_message)
         self.send_button.setEnabled(True)
 
     def apply_and_close(self):
@@ -803,11 +807,14 @@ class TranslationWindow(QDialog):
             if anything_applied:
                 self.accept()
             else:
+                # Information message - keep QMessageBox.information for non-error cases
                 QMessageBox.information(self, "Nothing to Apply",
                                           "No new translations were applied. A profile is only saved if at least one selected row contains a valid translation that is different from the source text.")
 
         except Exception as e:
-            QMessageBox.critical(self, "Apply Error", f"Failed to apply translations to project:\n{str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Apply Error", f"Failed to apply translations to project:\n{str(e)}", traceback_text)
 
     def closeEvent(self, event):
         if self.thread and self.thread.isRunning():

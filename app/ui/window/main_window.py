@@ -2,6 +2,10 @@
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QCheckBox, QPushButton,
                              QMessageBox, QSplitter, QComboBox)
+import traceback
+import sys
+import json
+from app.ui.dialogs.error_dialog import ErrorDialog
 from PySide6.QtCore import Qt, QSettings, QPoint, QRectF
 from PySide6.QtGui import QPixmap, QKeySequence, QAction, QColor
 import qtawesome as qta
@@ -250,7 +254,7 @@ class MainWindow(QMainWindow):
         self.model.load_project(mmtl_path, temp_dir)
 
     def on_project_load_failed(self, error_msg):
-        QMessageBox.critical(self, "Project Load Error", error_msg)
+        ErrorDialog.critical(self, "Project Load Error", error_msg)
         self.close()
 
     def on_project_loaded(self):
@@ -432,7 +436,9 @@ class MainWindow(QMainWindow):
                         f"- If using GPU: CUDA/driver issues or insufficient VRAM."
             print(f"Error: {error_msg}")
             traceback.print_exc()
-            QMessageBox.critical(self, "OCR Initialization Error", error_msg)
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "OCR Initialization Error", error_msg, traceback_text)
             self.reader = None
             return False
 
@@ -533,13 +539,14 @@ class MainWindow(QMainWindow):
         print("MainWindow: Batch finished.")
         self.model.next_global_row_number = next_row_number
         self.cleanup_ocr_session()
+        # Success message - keep QMessageBox.information for non-error cases
         QMessageBox.information(self, "Finished", "OCR processing completed for all images.")
     
     def on_batch_error(self, message):
         """Handles a critical error during the batch process."""
         print(f"MainWindow: Batch error received: {message}")
         self.cleanup_ocr_session()
-        QMessageBox.critical(self, "OCR Error", message)
+        ErrorDialog.critical(self, "OCR Error", message)
 
     def on_batch_stopped(self):
         """Handles the UI cleanup after the user manually stops the process."""
@@ -614,9 +621,10 @@ class MainWindow(QMainWindow):
         if success:
             if self.find_replace_widget.isVisible():
                 self.find_replace_widget.find_text()
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", message)
         else:
-            QMessageBox.critical(self, "Error", message)
+            ErrorDialog.critical(self, "Error", message)
     
     def toggle_advanced_mode(self, state):
         self.results_widget.right_content_stack.setCurrentIndex(1 if state else 0)
@@ -666,10 +674,13 @@ class MainWindow(QMainWindow):
     def handle_translation_completed(self, profile_name, translated_data):
         try:
             self.model.add_profile(profile_name, translated_data)
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", 
                 f"Translation successfully applied to profile:\n'{profile_name}'")
         except Exception as e:
-            QMessageBox.critical(self, "Import Error", f"Failed to apply translation: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Import Error", f"Failed to apply translation: {str(e)}", traceback_text)
             traceback.print_exc()
 
     def import_translation(self):
@@ -680,7 +691,9 @@ class MainWindow(QMainWindow):
                  translation_data = json.loads(content)
                  self.model.add_profile(profile_name, translation_data)
         except Exception as e:
-            QMessageBox.critical(self, "Import Error", f"Failed to import and apply translation file: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Import Error", f"Failed to import and apply translation file: {str(e)}", traceback_text)
 
     def update_shortcut(self):
         combine_shortcut = self.settings.value("combine_shortcut", "Ctrl+G")
@@ -696,9 +709,10 @@ class MainWindow(QMainWindow):
     def save_project(self):
         result_message = self.model.save_project()
         if "successfully" in result_message:
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Saved", result_message)
         else:
-            QMessageBox.critical(self, "Save Error", result_message)
+            ErrorDialog.critical(self, "Save Error", result_message)
 
     def closeEvent(self, event):
         if hasattr(self.model, 'temp_dir') and self.model.temp_dir and os.path.exists(self.model.temp_dir):

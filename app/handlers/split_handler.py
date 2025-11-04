@@ -4,8 +4,11 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QL
 from PySide6.QtCore import QObject, Qt, QRectF
 from PySide6.QtGui import QPixmap
 from app.ui.components import ResizableImageLabel
+from app.ui.dialogs.error_dialog import ErrorDialog
 import qtawesome as qta
 import os
+import traceback
+import sys
 
 class SplitHandler(QObject):
     """
@@ -162,6 +165,7 @@ class SplitHandler(QObject):
             scroll_layout.insertWidget(source_label_index + i, new_label)
 
         self.model.sort_and_notify()
+        # Success message - keep QMessageBox.information for non-error cases
         QMessageBox.information(self.scroll_area, "Split Successful", f"Image split into {len(new_pixmaps)} parts.")
         self.cancel_splitting_mode()
 

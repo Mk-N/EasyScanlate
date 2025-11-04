@@ -1,6 +1,8 @@
 # settings_dialog.py
 
 import os
+import traceback
+import sys
 from PySide6.QtWidgets import (QDialog, QDoubleSpinBox, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QComboBox, QSpinBox, QDialogButtonBox, QTabWidget,
                              QWidget, QLineEdit, QKeySequenceEdit, QCheckBox,
@@ -9,6 +11,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtCore import QSettings
 from assets import ADVANCED_CHECK_STYLES
 from app.utils.update import UpdateHandler
+from app.ui.dialogs.error_dialog import ErrorDialog
 GEMINI_MODELS_WITH_INFO = [
     ("gemini-2.5-flash", "250 req/day (free tier)"),
     ("gemini-2.5-pro", "100 req/day (free tier)"),
@@ -226,7 +229,7 @@ class SettingsDialog(QDialog):
 
     def on_update_error(self, message):
         self.update_status_label.setText("Update check failed.")
-        QMessageBox.critical(self, "Update Error", message)
+        ErrorDialog.critical(self, "Update Error", message)
         self.check_updates_button.setEnabled(True)
         self.download_update_button.setEnabled(True)
 

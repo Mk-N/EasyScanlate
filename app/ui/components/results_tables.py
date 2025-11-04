@@ -3,6 +3,7 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea, QStackedWidget,
                              QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
                              QTextEdit, QAbstractItemView, QStyledItemDelegate)
+from app.ui.dialogs.error_dialog import ErrorDialog
 from PySide6.QtCore import Qt, Signal, QEvent
 import qtawesome as qta
 import math
@@ -337,7 +338,7 @@ class ResultsWidget(QWidget):
         selected_original_row_numbers = []
         for rn_raw in selected_original_row_numbers_raw:
             try: selected_original_row_numbers.append(float(rn_raw))
-            except (ValueError, TypeError): QMessageBox.critical(self, "Error", "Invalid row number data."); return
+            except (ValueError, TypeError): ErrorDialog.critical(self, "Error", "Invalid row number data."); return
         selected_original_row_numbers.sort()
 
         selected_results = []; filename_set = set(); contains_float = False
@@ -348,7 +349,7 @@ class ResultsWidget(QWidget):
                 filename_set.add(result.get('filename'))
                 rn_orig = result.get('row_number')
                 if isinstance(rn_orig, float) and not rn_orig.is_integer(): contains_float = True
-            else: QMessageBox.critical(self, "Error", f"Result {rn_float} not found/deleted."); return
+            else: ErrorDialog.critical(self, "Error", f"Result {rn_float} not found/deleted."); return
 
         if len(filename_set) > 1: QMessageBox.warning(self, "Warning", "Cannot combine rows from different files"); return
         if contains_float: QMessageBox.warning(self, "Combine Restriction", "Combining manually added rows is not supported yet."); return

@@ -4,8 +4,11 @@ from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QMessageBox
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QPixmap, QPainter
 from app.ui.components import ResizableImageLabel
+from app.ui.dialogs.error_dialog import ErrorDialog
 import qtawesome as qta
 import os
+import traceback
+import sys
 
 class StitchHandler(QObject):
     """
@@ -181,6 +184,7 @@ class StitchHandler(QObject):
         scroll_layout.insertWidget(first_label_index, new_label)
 
         self.model.sort_and_notify()
+        # Success message - keep QMessageBox.information for non-error cases
         QMessageBox.information(self.scroll_area, "Stitch Successful", 
                                 f"{len(labels_to_stitch)} images stitched into one.")
         self.cancel_stitching_mode()

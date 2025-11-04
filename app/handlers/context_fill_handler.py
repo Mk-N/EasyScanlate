@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QHBoxLayout, QL
 from PySide6.QtGui import QImage, QPixmap, QPainterPath, QPolygonF, QPainter
 from PySide6.QtCore import QBuffer, QRectF, QPointF
 from app.ui.components import ResizableImageLabel
+from app.ui.dialogs.error_dialog import ErrorDialog
 from assets import MANUALOCR_STYLES
 
 class ContextFillHandler:
@@ -70,6 +71,7 @@ class ContextFillHandler:
         self.overlay_widget.show()
         self.overlay_widget.raise_()
         
+        # Information message - keep QMessageBox.information for non-error cases
         QMessageBox.information(self.scroll_area, "Context Fill Mode",
                                 "Click and drag on an image to select an area to inpaint. "
                                 "You can make multiple selections on the same image.")
@@ -95,6 +97,7 @@ class ContextFillHandler:
                 widget.set_text_visibility(False)
                 widget.set_inpaint_edit_mode(True)
         
+        # Information message - keep QMessageBox.information for non-error cases
         QMessageBox.information(self.scroll_area, "Edit Context Fill Mode",
                                 "Inpaint areas are highlighted. Click on a highlight to select it, then press Delete or Backspace to remove it.")
 
@@ -330,6 +333,7 @@ class ContextFillHandler:
 
             if success:
                 if show_dialogs:
+                    # Success message - keep QMessageBox.information for non-error cases
                     QMessageBox.information(self.scroll_area, "Success", "Context fill applied successfully.")
             else:
                 raise Exception(error_msg)
@@ -338,4 +342,6 @@ class ContextFillHandler:
             print(f"Error during inpainting: {e}")
             traceback.print_exc(file=sys.stdout)
             if show_dialogs:
-                QMessageBox.critical(self.scroll_area, "Inpainting Error", f"An unexpected error occurred: {str(e)}")
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+                ErrorDialog.critical(self.scroll_area, "Inpainting Error", f"An unexpected error occurred: {str(e)}", traceback_text)

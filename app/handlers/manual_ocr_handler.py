@@ -9,6 +9,7 @@ from PIL import Image
 from PySide6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import QBuffer, Signal, QObject
 from app.ui.components import ResizableImageLabel
+from app.ui.dialogs.error_dialog import ErrorDialog
 from assets import MANUALOCR_STYLES
 from app.core.ocr_processor import OCRProcessor
 
@@ -87,6 +88,7 @@ class ManualOCRHandler(QObject):
             self.overlay_widget.show()
             self.overlay_widget.raise_()
             
+            # Information message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self.scroll_area, "Manual OCR Mode",
                                     "Click and drag on an image to select an area for OCR.")
         else:
@@ -237,7 +239,9 @@ class ManualOCRHandler(QObject):
         except Exception as e:
             print(f"Error preparing manual OCR processing: {e}")
             traceback.print_exc(file=sys.stdout)
-            QMessageBox.critical(self.scroll_area, "Manual OCR Error", f"An unexpected error occurred: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self.scroll_area, "Manual OCR Error", f"An unexpected error occurred: {str(e)}", traceback_text)
             self.reset_selection()
 
     # --- NEW: Slot to handle results from the processor thread ---
@@ -247,6 +251,7 @@ class ManualOCRHandler(QObject):
         position, and adds the new results to the model.
         """
         if not processed_results:
+            # Information message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self.scroll_area, "Info", "No text was found in the selected area after filtering.")
             self.reset_selection()
             return
@@ -316,11 +321,12 @@ class ManualOCRHandler(QObject):
 
         if final_results_for_model:
             self.model.add_new_ocr_results(final_results_for_model)
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self.scroll_area, "Success", f"Added {len(final_results_for_model)} new text block(s).")
         
         self.reset_selection()
 
     def _handle_manual_ocr_error(self, error_message):
         """Handles a critical error from the OCR processor thread."""
-        QMessageBox.critical(self.scroll_area, "Manual OCR Error", f"An unexpected error occurred during processing:\n{error_message}")
+        ErrorDialog.critical(self.scroll_area, "Manual OCR Error", f"An unexpected error occurred during processing:\n{error_message}")
         self.reset_selection()
