@@ -5,16 +5,18 @@
   #### addition
   - custom error msg box
     - link to github issue report if any error
-  - 
+  - dedicated import/export dialogs for OCR/translation data
 
   #### fixes
-  - 
+  - fix import/export OCR/translation data functionality
 
   #### modification
   - 
 
 ## currently in progress
-  - fix import/export plaintext ocr/translation data
+  - fix find and replace bugs :
+    - roman character not working for some reason if there are other profile in other type of character (non roman)
+    - profile creation/switching crashes the app when on find
 
 ## not yet started
 
@@ -26,8 +28,7 @@
     - add directional blur to typography
     - add drop shadow to both
     - add 
-  - add link to github issues for when there is crash
-    - add issue template
+  - add issue template for crash reports
   - 2 pane view of manhwa (for original and translated view side by side)(layers and overlays can be individualy toggle off and on)
   - add tool bar on the right
   - add direct retranslate on main window
@@ -45,9 +46,6 @@
 
   #### fixes
   - fix skew/free transform
-  - fix find and replace bugs :
-    - roman character not working for some reason if there are other profile in other type of character (non roman)
-    - profile creation/switching crashes the app when on find
 
   #### modification
   - rework how gradient work
