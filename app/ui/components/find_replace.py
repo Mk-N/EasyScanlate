@@ -53,6 +53,8 @@ class FindReplaceWidget(QWidget):
         self._active_highlighters: dict[QTextDocument, SearchHighlighter] = {}
         self.search_timer = QTimer(self); self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(300); self.search_timer.timeout.connect(self.find_text)
+        self._is_highlighting = False  # Flag to prevent textChanged from triggering updates during highlighting
+        self._highlighting_text_cache = {}  # Cache text during highlighting to detect false changes
 
         # Filter states (add more as needed)
         self._match_case = False
@@ -213,7 +215,7 @@ class FindReplaceWidget(QWidget):
             self.update_match_count_label(); return
 
         flags = re.NOFLAG if case_sensitive else re.IGNORECASE
-        visible_results = [res for res in self.main_window.ocr_results if not res.get('is_deleted', False)]
+        visible_results = [res for res in self.main_window.model.ocr_results if not res.get('is_deleted', False)]
 
         try:
             # --- Prepare search pattern based on filters ---
@@ -226,7 +228,7 @@ class FindReplaceWidget(QWidget):
 
             # --- Find matches ---
             for result in visible_results:
-                text = result.get('text', '')
+                text = self.main_window.get_display_text(result)
                 row_number = result.get('row_number')
                 filename = result.get('filename')
                 if row_number is None: continue
@@ -312,19 +314,44 @@ class FindReplaceWidget(QWidget):
         elif widget_type == 'simple_text_edit':
             target_text_edit = target_widget; container_widget = container
             match_info = self.matches[index]; start = match_info['start']; end = match_info['end']
-            highlighter = self._get_or_create_highlighter(target_text_edit.document())
-            highlighter.setPattern(self.find_input.text(), self._match_case) # Ensure pattern set
-            cursor = target_text_edit.textCursor(); cursor.setPosition(start); cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
-            target_text_edit.setTextCursor(cursor)
+            # Block signals during highlighting to prevent textChanged from triggering update_ocr_text
+            self._is_highlighting = True
+            # Store original text to detect if it actually changed
+            original_text = target_text_edit.toPlainText()
+            target_text_edit.blockSignals(True)
+            try:
+                highlighter = self._get_or_create_highlighter(target_text_edit.document())
+                highlighter.setPattern(self.find_input.text(), self._match_case) # Ensure pattern set
+                cursor = target_text_edit.textCursor(); cursor.setPosition(start); cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+                target_text_edit.setTextCursor(cursor)
+            finally:
+                target_text_edit.blockSignals(False)
+                # Store the text that was there before highlighting to detect false changes
+                if not hasattr(self, '_highlighting_text_cache'):
+                    self._highlighting_text_cache = {}
+                self._highlighting_text_cache[id(target_text_edit)] = original_text
+                # Use QTimer to reset flag after Qt processes any queued events (longer delay to catch queued textChanged)
+                QTimer.singleShot(200, lambda: self._clear_highlighting_flag(id(target_text_edit)))
             # Access the scroll area within the results_widget
             self.main_window.results_widget.simple_scroll.ensureWidgetVisible(container_widget)
         self.update_match_count_label()
 
+    def _clear_highlighting_flag(self, widget_id):
+        """Clears the highlighting flag and cache for a specific widget."""
+        if widget_id in self._highlighting_text_cache:
+            del self._highlighting_text_cache[widget_id]
+        self._is_highlighting = False
+    
     def focus_current_match(self):
         widget_type, target_widget, container = self._find_widget_for_match(self.current_match_index)
-        if widget_type == 'table': container.setFocus()
-        elif widget_type == 'simple_text_edit': target_widget.setFocus()
-        else: self.find_input.setFocus()
+        if widget_type == 'table': 
+            container.setFocus()
+        elif widget_type == 'simple_text_edit': 
+            # Don't set focus on the text edit - keep focus on find input so Enter continues to work
+            # Just scroll to the match without focusing it
+            pass
+        # Always keep focus on find input so Enter continues to trigger find_next
+        self.find_input.setFocus()
 
     # MODIFIED: Updated to access UI elements via self.main_window.results_widget
     def clear_highlights(self):
@@ -334,13 +361,19 @@ class FindReplaceWidget(QWidget):
 
     def find_next(self):
         if not self.matches: return
+        # Set flag before highlighting to prevent textChanged from triggering updates
+        self._is_highlighting = True
         self.current_match_index = (self.current_match_index + 1) % len(self.matches)
-        self.highlight_match(self.current_match_index); self.focus_current_match()
+        self.highlight_match(self.current_match_index)
+        self.focus_current_match()
 
     def find_previous(self):
         if not self.matches: return
+        # Set flag before highlighting to prevent textChanged from triggering updates
+        self._is_highlighting = True
         self.current_match_index = (self.current_match_index - 1 + len(self.matches)) % len(self.matches)
-        self.highlight_match(self.current_match_index); self.focus_current_match()
+        self.highlight_match(self.current_match_index)
+        self.focus_current_match()
 
 
     # --- Replace Methods - Update to use filter states ---
@@ -351,12 +384,17 @@ class FindReplaceWidget(QWidget):
         start = match_info['start']; end = match_info['end']
         result_to_update, _ = self.main_window._find_result_by_row_number(row_number)
         if not result_to_update or result_to_update.get('is_deleted', False): self.find_text(); return
-        current_text = result_to_update['text']; search_term_len = end - start; replace_term = self.replace_input.text()
+        current_text = self.main_window.get_display_text(result_to_update); search_term_len = end - start; replace_term = self.replace_input.text()
         if start < len(current_text) and start + search_term_len <= len(current_text):
             new_text = current_text[:start] + replace_term + current_text[start + search_term_len:]
         else: self.find_text(); return
-        result_to_update['text'] = new_text
-        self._update_ui_text(row_number, new_text)
+        # Check if profile was created (for programmatic updates, we need to update selector but not show message)
+        was_original = self.main_window.model.active_profile_name == "Original"
+        result = self.main_window.model.update_text(row_number, new_text, is_user_edit=False)
+        # If profile was created, update selector but don't show message
+        # Format: (error, success, profile_created, should_show_message)
+        if len(result) == 4 and result[2] and was_original:  # profile_created is True
+            self.main_window.model.profiles_updated.emit()
         self.find_text() # Re-run find
 
     def replace_all(self):
@@ -370,7 +408,7 @@ class FindReplaceWidget(QWidget):
         flags = re.NOFLAG if case_sensitive else re.IGNORECASE
 
         replaced_count = 0; rows_updated = set()
-        visible_results_indices = [idx for idx, res in enumerate(self.main_window.ocr_results) if not res.get('is_deleted', False)]
+        visible_results_indices = [idx for idx, res in enumerate(self.main_window.model.ocr_results) if not res.get('is_deleted', False)]
 
         try:
             # --- Prepare search pattern based on filters ---
@@ -379,16 +417,26 @@ class FindReplaceWidget(QWidget):
             if self._match_whole_word: pattern_to_search = r"\b" + pattern_to_search + r"\b"
 
             # --- Perform replacement ---
+            was_original = self.main_window.model.active_profile_name == "Original"
+            profile_created = False
             for data_index in visible_results_indices:
-                 result_to_update = self.main_window.ocr_results[data_index]
-                 original_text = result_to_update['text']; row_number = result_to_update['row_number']
+                 result_to_update = self.main_window.model.ocr_results[data_index]
+                 original_text = self.main_window.get_display_text(result_to_update); row_number = result_to_update['row_number']
 
                  # Use re.subn which counts replacements
                  new_text, num_subs = re.subn(pattern_to_search, replace_term, original_text, flags=flags)
 
                  if num_subs > 0:
-                     result_to_update['text'] = new_text; replaced_count += num_subs; rows_updated.add(row_number)
-                     self._update_ui_text(row_number, new_text) # Update UI per row
+                     result = self.main_window.model.update_text(row_number, new_text, is_user_edit=False)
+                     # Check if profile was created (only on first update if in Original)
+                     # Format: (error, success, profile_created, should_show_message)
+                     if len(result) == 4 and result[2] and was_original and not profile_created:  # profile_created is True
+                         profile_created = True
+                     replaced_count += num_subs; rows_updated.add(row_number)
+            
+            # If profile was created, update selector but don't show message
+            if profile_created:
+                self.main_window.model.profiles_updated.emit()
 
         except re.error as e:
             print(f"Replace All: Regex error: {e}")
@@ -452,3 +500,16 @@ class FindReplaceWidget(QWidget):
 
     def close_widget(self):
         self.hide(); self.closed.emit()
+
+    def on_profile_changed(self):
+        """Handles profile changes by clearing stale references and refreshing search."""
+        # Clear stale highlighter references (widgets may have been recreated)
+        self._active_highlighters.clear()
+        # Reset matches and index
+        self.matches = []
+        self.current_match_index = -1
+        # Clear highlights
+        self.clear_highlights()
+        # Refresh search if widget is visible
+        if self.isVisible():
+            self.find_text()

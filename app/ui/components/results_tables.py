@@ -139,6 +139,18 @@ class ResultsWidget(QWidget):
         if self.main_window.find_replace_widget.isVisible(): self.main_window.find_replace_widget.find_text()
 
     def on_simple_text_changed(self, original_row_number, text):
+        # Always check if text actually changed by comparing with model
+        # This prevents false positives from cursor changes, highlighting, etc.
+        result_data = self.main_window.model._find_result_by_row_number(original_row_number)[0]
+        if result_data:
+            current_text_in_model = self.main_window.get_display_text(result_data)
+            # Normalize whitespace for comparison (strip leading/trailing, normalize newlines)
+            # This handles cases where cursor positioning adds invisible whitespace
+            normalized_widget_text = text.strip().replace('\r\n', '\n').replace('\r', '\n')
+            normalized_model_text = current_text_in_model.strip().replace('\r\n', '\n').replace('\r', '\n')
+            
+            if normalized_widget_text == normalized_model_text:
+                return
         self.main_window.update_ocr_text(original_row_number, text)
         self._update_table_cell_if_visible(original_row_number, 0, text)
 

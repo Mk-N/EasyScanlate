@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.model.project_load_failed.connect(self.on_project_load_failed)
         self.model.model_updated.connect(self.on_model_updated)
         self.model.profiles_updated.connect(self.update_profile_selector)
+        self.model.profiles_updated.connect(self._on_profile_list_changed)
+        self.model.profile_created_for_user_edit.connect(self._on_profile_created_for_user_edit)
 
         self.selection_manager = SelectionManager(self.model, self)
         self.selection_manager.selection_changed.connect(self.on_selection_changed)
@@ -230,7 +232,18 @@ class MainWindow(QMainWindow):
         if profile_name and profile_name in self.model.profiles and profile_name != self.model.active_profile_name:
             print(f"Switching to active profile: {profile_name}")
             self.model.active_profile_name = profile_name
+            self._on_profile_changed()
             self.on_model_updated(None)
+    
+    def _on_profile_changed(self):
+        """Handles profile changes by notifying find widget."""
+        if hasattr(self, 'find_replace_widget'):
+            self.find_replace_widget.on_profile_changed()
+    
+    def _on_profile_list_changed(self):
+        """Handles profile list changes (additions/deletions)."""
+        if hasattr(self, 'find_replace_widget'):
+            self.find_replace_widget.on_profile_changed()
 
     def show_settings_dialog(self):
         dialog = SettingsDialog(self)
@@ -597,20 +610,33 @@ class MainWindow(QMainWindow):
                 target_item.adjust_font_size()
 
     def update_ocr_text(self, row_number, new_text):
+        # Temporarily block signals to avoid triggering model_updated during the update
+        was_blocked = self.model.blockSignals(True)
+        profile_created_for_user = False
         try:
-            self.model.model_updated.disconnect(self.on_model_updated)
-        except TypeError:
-            pass
-
-        try:
-            if self.model.active_profile_name == "Original":
-                 QMessageBox.information(self, "Edit Profile Created",
-                                         f"First edit detected. A new profile 'User Edit 1' has been created and set as active. "
-                                         "Your original OCR text is preserved.")
-            self.model.update_text(row_number, new_text)
+            result = self.model.update_text(row_number, new_text, is_user_edit=True)
+            # Handle both old return format (error, success) and new format (error, success, profile_created, should_show_message)
+            if len(result) >= 3:
+                if len(result) == 4:
+                    _, _, _, should_show_message = result
+                    profile_created_for_user = should_show_message
+                else:
+                    # Old 3-value format
+                    _, _, profile_created_for_user = result
             self.update_image_text_box(row_number, new_text)
         finally:
-            self.model.model_updated.connect(self.on_model_updated)
+            # Restore previous signal blocking state
+            self.model.blockSignals(was_blocked)
+            # Emit signals after unblocking if profile was created for user edit
+            if profile_created_for_user:
+                self.model.profiles_updated.emit()
+                self.model.profile_created_for_user_edit.emit()
+    
+    def _on_profile_created_for_user_edit(self):
+        """Shows message when a profile is created for a user edit."""
+        QMessageBox.information(self, "Edit Profile Created",
+                                f"First edit detected. A new profile 'User Edit 1' has been created and set as active. "
+                                "Your original OCR text is preserved.")
 
     def combine_rows_in_model(self, first_row_number, combined_text, min_confidence, rows_to_delete):
         if self.model.active_profile_name == "Original":

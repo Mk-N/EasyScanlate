@@ -21,6 +21,8 @@ class ProjectModel(QObject):
     model_updated = Signal(list)
     # Emitted when the list of profiles changes (new profile added).
     profiles_updated = Signal()
+    # Emitted when a profile is created for a user edit (not programmatic changes like find/replace).
+    profile_created_for_user_edit = Signal()
 
     def __init__(self):
         super().__init__()
@@ -410,19 +412,31 @@ class ProjectModel(QObject):
         affected_filename = new_results[0].get('filename')
         self.model_updated.emit([affected_filename] if affected_filename else [])
 
-    def update_text(self, row_number, new_text: str):
-        """Updates the text for a given row in the active profile."""
+    def update_text(self, row_number, new_text: str, is_user_edit: bool = True):
+        """Updates the text for a given row in the active profile.
+        
+        Args:
+            row_number: The row number to update
+            new_text: The new text to set
+            is_user_edit: If True, this is a direct user edit (will show profile creation message).
+                         If False, this is a programmatic change (e.g., find/replace) and should not show messages.
+        """
         target_result, _ = self._find_result_by_row_number(row_number)
         if not target_result or target_result.get('is_deleted', False):
             return "Result not found or is deleted.", False
 
         # If user is editing while in "Original", create a new profile.
+        profile_created = False
         if self.active_profile_name == "Original":
             self.active_profile_name = "User Edit 1"
             if self.active_profile_name not in self.profiles:
                 self.profiles[self.active_profile_name] = {}
-                self.profiles_updated.emit() # Signal that the profile list has changed
-                # The view will handle showing the message.
+                # Only emit profiles_updated for user edits, not programmatic changes
+                # For programmatic changes, the caller will handle emitting if needed
+                if is_user_edit:
+                    self.profiles_updated.emit()
+                profile_created = True
+                # The view will handle showing the message only for user edits.
 
         if 'translations' not in target_result:
             target_result['translations'] = {}
@@ -435,7 +449,9 @@ class ProjectModel(QObject):
             target_result['translations'][self.active_profile_name] = new_text
 
         self.model_updated.emit([target_result.get('filename')])
-        return None, True
+        # Return profile_created flag separately so caller can decide what to do
+        # Format: (error, success, profile_created, should_show_message)
+        return None, True, profile_created, profile_created and is_user_edit
 
     def delete_row(self, row_number_to_delete):
         """Marks a row as deleted."""
