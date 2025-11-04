@@ -3,3 +3,4 @@ from assets.styles import (COLORS, FIND_REPLACE_STYLESHEET, MAIN_STYLESHEET, IV_
                            DEFAULT_GRADIENT, DEFAULT_TEXT_STYLE, PROGRESS_STYLES, get_style_diff)
 from assets.styles2 import CHROMESTYLES, MANUALOCR_STYLES, MENU_STYLES
 from assets.styles3 import TEXT_BOX_STYLE_PANEL_STYLE, SHAPE_PANEL_STYLE, TYPOGRAPHY_PANEL_STYLE
+from assets.styles4 import IMPORT_EXPORT_STYLES

@@ -684,16 +684,8 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
 
     def import_translation(self):
-        profile_name = "Imported Translation"
-        try:
-            content = import_translation_file(self)
-            if content:
-                 translation_data = json.loads(content)
-                 self.model.add_profile(profile_name, translation_data)
-        except Exception as e:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-            ErrorDialog.critical(self, "Import Error", f"Failed to import and apply translation file: {str(e)}", traceback_text)
+        """Import translation file - delegates to file_io handler."""
+        import_translation_file(self)
 
     def update_shortcut(self):
         combine_shortcut = self.settings.value("combine_shortcut", "Ctrl+G")
