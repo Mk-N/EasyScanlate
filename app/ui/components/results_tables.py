@@ -188,10 +188,11 @@ class ResultsWidget(QWidget):
         result_data = self.main_window.model._find_result_by_row_number(original_row_number)[0]
         if result_data:
             current_text_in_model = self.main_window.get_display_text(result_data)
-            # Normalize whitespace for comparison (strip leading/trailing, normalize newlines)
-            # This handles cases where cursor positioning adds invisible whitespace
-            normalized_widget_text = text.strip().replace('\r\n', '\n').replace('\r', '\n')
-            normalized_model_text = current_text_in_model.strip().replace('\r\n', '\n').replace('\r', '\n')
+            # Normalize only line endings for comparison (don't strip whitespace - preserve user edits like trailing spaces)
+            # This handles cases where cursor positioning adds invisible newline differences
+            # but preserves meaningful whitespace changes like trailing spaces
+            normalized_widget_text = text.replace('\r\n', '\n').replace('\r', '\n')
+            normalized_model_text = current_text_in_model.replace('\r\n', '\n').replace('\r', '\n')
             
             if normalized_widget_text == normalized_model_text:
                 return

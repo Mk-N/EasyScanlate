@@ -245,8 +245,27 @@ class FindReplaceWidget(QWidget):
                 pattern_to_search = r"\b" + pattern_to_search + r"\b"
 
             # --- Find matches ---
+            # If we're in Original but there's a user edit profile, search in user edit text
+            # to show matches in what will actually be replaced
+            search_in_user_edit = False
+            existing_user_edit = None
+            if self.main_window.model.active_profile_name == "Original":
+                existing_user_edit = self.main_window.model._find_existing_user_edit_profile()
+                if existing_user_edit:
+                    search_in_user_edit = True
+            
             for result in visible_results:
-                text = self.main_window.get_display_text(result)
+                # Get text to search - use user edit if we're routing to it, otherwise use display text
+                if search_in_user_edit and existing_user_edit:
+                    translations = result.get('translations', {})
+                    if existing_user_edit in translations:
+                        text = translations[existing_user_edit]
+                    else:
+                        # This row doesn't have user edit yet, search in original
+                        text = result.get('text', '')
+                else:
+                    text = self.main_window.get_display_text(result)
+                
                 row_number = result.get('row_number')
                 filename = result.get('filename')
                 if row_number is None: continue
@@ -556,10 +575,64 @@ class FindReplaceWidget(QWidget):
         start = match_info['start']; end = match_info['end']
         result_to_update, _ = self.main_window._find_result_by_row_number(row_number)
         if not result_to_update or result_to_update.get('is_deleted', False): self.find_text(); return
-        current_text = self.main_window.get_display_text(result_to_update); search_term_len = end - start; replace_term = self.replace_input.text()
+        
+        # Get the text we should be working with (user edit if exists, otherwise original)
+        # We need to check if there's a user edit profile and use that text for replacement
+        current_text = self.main_window.get_display_text(result_to_update)
+        search_term = self.find_input.text()
+        replace_term = self.replace_input.text()
+        
+        # Check if we're in Original but there's a user edit profile - we should use that text
+        if self.main_window.model.active_profile_name == "Original":
+            existing_user_edit = self.main_window.model._find_existing_user_edit_profile()
+            if existing_user_edit:
+                # Get the text from the user edit profile for this result
+                translations = result_to_update.get('translations', {})
+                if existing_user_edit in translations:
+                    current_text = translations[existing_user_edit]
+                    # Re-verify match position against the user edit text
+                    # The match might be at a slightly different position due to previous edits
+                    flags = re.NOFLAG if self._match_case else re.IGNORECASE
+                    pattern_to_search = re.escape(search_term) if not self._use_regex else search_term
+                    if self._match_whole_word:
+                        pattern_to_search = r"\b" + pattern_to_search + r"\b"
+                    
+                    # Try to find the match in the user edit text
+                    match_obj = re.search(pattern_to_search, current_text, flags=flags)
+                    if match_obj:
+                        start, end = match_obj.span()
+                    else:
+                        # Match not found in user edit text - might have been edited differently
+                        # Try to find a similar match near the original position
+                        # Check if the text at the stored position is close to the search term
+                        if start < len(current_text) and end <= len(current_text):
+                            text_at_position = current_text[start:end]
+                            # If the text at position doesn't match, try searching nearby
+                            search_start = max(0, start - len(search_term))
+                            search_end = min(len(current_text), end + len(search_term))
+                            nearby_text = current_text[search_start:search_end]
+                            match_obj = re.search(pattern_to_search, nearby_text, flags=flags)
+                            if match_obj:
+                                start = search_start + match_obj.start()
+                                end = search_start + match_obj.end()
+                            else:
+                                # Couldn't find match - refresh search and return
+                                self.find_text()
+                                return
+        
+        # Verify match position is still valid
+        if start < 0 or end > len(current_text) or start > end:
+            self.find_text()
+            return
+        
+        # Perform the replacement
+        search_term_len = end - start
         if start < len(current_text) and start + search_term_len <= len(current_text):
             new_text = current_text[:start] + replace_term + current_text[start + search_term_len:]
-        else: self.find_text(); return
+        else:
+            self.find_text()
+            return
+        
         # Check if profile was created (for programmatic updates, we need to update selector but not show message)
         was_original = self.main_window.model.active_profile_name == "Original"
         result = self.main_window.model.update_text(row_number, new_text, is_user_edit=False)
@@ -591,12 +664,25 @@ class FindReplaceWidget(QWidget):
             # --- Perform replacement ---
             was_original = self.main_window.model.active_profile_name == "Original"
             profile_created = False
+            # Check if we're in Original but there's a user edit profile - we should use that text
+            existing_user_edit = None
+            if was_original:
+                existing_user_edit = self.main_window.model._find_existing_user_edit_profile()
+            
             for data_index in visible_results_indices:
                  result_to_update = self.main_window.model.ocr_results[data_index]
-                 original_text = self.main_window.get_display_text(result_to_update); row_number = result_to_update['row_number']
+                 row_number = result_to_update['row_number']
+                 
+                 # Get the text to work with - use user edit if exists, otherwise display text
+                 text_to_replace = self.main_window.get_display_text(result_to_update)
+                 if was_original and existing_user_edit:
+                     # Check if this result has a translation in the user edit profile
+                     translations = result_to_update.get('translations', {})
+                     if existing_user_edit in translations:
+                         text_to_replace = translations[existing_user_edit]
 
                  # Use re.subn which counts replacements
-                 new_text, num_subs = re.subn(pattern_to_search, replace_term, original_text, flags=flags)
+                 new_text, num_subs = re.subn(pattern_to_search, replace_term, text_to_replace, flags=flags)
 
                  if num_subs > 0:
                      result = self.main_window.model.update_text(row_number, new_text, is_user_edit=False)

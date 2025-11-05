@@ -617,6 +617,7 @@ class MainWindow(QMainWindow):
         # Temporarily block signals to avoid triggering model_updated during the update
         was_blocked = self.model.blockSignals(True)
         profile_created_for_user = False
+        was_original_before = self.model.active_profile_name == "Original"
         try:
             result = self.model.update_text(row_number, new_text, is_user_edit=True)
             # Handle both old return format (error, success) and new format (error, success, profile_created, should_show_message)
@@ -627,7 +628,25 @@ class MainWindow(QMainWindow):
                 else:
                     # Old 3-value format
                     _, _, profile_created_for_user = result
-            self.update_image_text_box(row_number, new_text)
+            
+            # Check if profile was routed (switched from Original to user edit)
+            # This happens when we route to an existing user edit profile
+            profile_routed = was_original_before and self.model.active_profile_name != "Original"
+            
+            # Get the actual text that was saved (might be different from new_text if deleted content was preserved)
+            result_data, _ = self.model._find_result_by_row_number(row_number)
+            if result_data:
+                actual_saved_text = self.model.get_display_text(result_data)
+                # If the saved text is different from what user typed, update the widget to show the saved text
+                if actual_saved_text != new_text:
+                    # The model preserved the user edit - update widget to reflect this
+                    # Update both simple view and table view if visible
+                    if hasattr(self, 'results_widget') and self.results_widget:
+                        self.results_widget._update_simple_view_text_if_visible(row_number, actual_saved_text)
+                        self.results_widget._update_table_cell_if_visible(row_number, 0, actual_saved_text)
+                self.update_image_text_box(row_number, actual_saved_text)
+            else:
+                self.update_image_text_box(row_number, new_text)
         finally:
             # Restore previous signal blocking state
             self.model.blockSignals(was_blocked)
@@ -635,6 +654,14 @@ class MainWindow(QMainWindow):
             if profile_created_for_user:
                 self.model.profiles_updated.emit()
                 self.model.profile_created_for_user_edit.emit()
+            # If profile was routed to existing user edit, update UI to reflect the switch
+            elif profile_routed:
+                # Update profile selector to show we're now on user edit profile
+                # This ensures the UI reflects that we're editing in user edit profile, not Original
+                self.update_profile_selector()
+                # Note: We don't do a full view update here to avoid interrupting the user's editing session
+                # The widget already has the correct text (the edited/deleted text), and other widgets
+                # will update naturally when model_updated is emitted from update_text
     
     def _on_profile_created_for_user_edit(self):
         """Shows message when a profile is created for a user edit."""

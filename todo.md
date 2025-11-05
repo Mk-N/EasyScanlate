@@ -9,14 +9,15 @@
 
   #### fixes
   - fix import/export OCR/translation data functionality
-
-  #### modification
-  - 
-
-## currently in progress
   - fix find and replace bugs :
     - roman character not working for some reason if there are other profile in other type of character (non roman)
     - profile creation/switching crashes the app when on find
+
+  #### modification
+  - make protect original text to be for all edits (not just first edit)
+
+## currently in progress
+  - 
 
 ## not yet started
 
