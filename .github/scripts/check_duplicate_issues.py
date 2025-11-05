@@ -476,7 +476,8 @@ def calculate_traceback_similarity(body1: str, body2: str) -> float:
     if (traceback1 and not traceback2) or (traceback2 and not traceback1):
         # Check if the other body mentions similar error keywords
         error_keywords = ['error', 'exception', 'traceback', 'failed', 'crash']
-        body_without_tb = (body2 if traceback1 else body1).lower()
+        # The body can be None, so we add `or ""` to ensure it's a string before calling .lower()
+        body_without_tb = ((body2 if traceback1 else body1) or "").lower()
         if any(keyword in body_without_tb for keyword in error_keywords):
             # Both seem to be error reports, give partial credit
             return 30.0
@@ -645,7 +646,7 @@ def combined_similarity_score(new_issue: Dict, existing_issue: Dict) -> Tuple[fl
     traceback_sim = calculate_traceback_similarity(new_body, existing_body)
     
     # Keyword overlap using meaningful content
-    meaningful_text1 = new_title + ' ' + (new_meaningful or new_body)
+    meaningful_text1 = new_title + ' ' + (new_meaningful or new_body or '')
     meaningful_text2 = existing_title + ' ' + (existing_meaningful or existing_body or '')
     keyword_overlap = calculate_keyword_overlap(meaningful_text1, meaningful_text2)
     
@@ -810,4 +811,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-
