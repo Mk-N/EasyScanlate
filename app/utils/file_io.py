@@ -3,7 +3,7 @@ import ast
 import json
 from PySide6.QtWidgets import QMessageBox, QFileDialog, QInputDialog
 from PySide6.QtCore import QRectF, QDir
-from app.ui.components import ResizableImageLabel
+from app.ui.components.image_area.label import ResizableImageLabel
 from app.core.translations import generate_for_translate_content, import_translation_file_content
 import zipfile
 

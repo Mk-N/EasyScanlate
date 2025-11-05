@@ -11,7 +11,7 @@ import uuid
 from PySide6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtGui import QImage, QPixmap, QPainterPath, QPolygonF, QPainter
 from PySide6.QtCore import QBuffer, QRectF, QPointF
-from app.ui.components import ResizableImageLabel
+from app.ui.components.image_area.label import ResizableImageLabel
 from app.ui.dialogs.error_dialog import ErrorDialog
 from assets import MANUALOCR_STYLES
 

@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QMessageBox
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QPixmap, QPainter
-from app.ui.components import ResizableImageLabel
+from app.ui.components.image_area.label import ResizableImageLabel
 from app.ui.dialogs.error_dialog import ErrorDialog
 import qtawesome as qta
 import os

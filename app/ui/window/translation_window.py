@@ -9,7 +9,7 @@ import sys
 from app.core.translations import TranslationThread, _get_text_for_profile_static, generate_for_translate_content, generate_retranslate_content, import_translation_file_content
 from app.ui.dialogs.error_dialog import ErrorDialog
 
-from app.ui.dialogs import GEMINI_MODELS_WITH_INFO
+from app.ui.dialogs.settings_dialog import GEMINI_MODELS_WITH_INFO
 from assets import ADVANCED_CHECK_STYLES
 
 # Style constants for row highlighting

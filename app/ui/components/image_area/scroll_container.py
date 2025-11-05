@@ -7,7 +7,7 @@ from assets import IV_BUTTON_STYLES
 from app.handlers import StitchHandler, SplitHandler, ContextFillHandler, ManualOCRHandler
 # --- MODIFIED: Import the generic Menu class and the new ToggleButton ---
 from app.ui.widgets.menus import Menu, ToggleButton
-from app.ui.components import ResizableImageLabel
+from app.ui.components.image_area.label import ResizableImageLabel
     
 class CustomScrollArea(QScrollArea):
     """

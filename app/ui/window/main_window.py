@@ -10,13 +10,18 @@ from PySide6.QtCore import Qt, QSettings, QPoint, QRectF
 from PySide6.QtGui import QPixmap, QKeySequence, QAction, QColor
 import qtawesome as qta
 from app.utils.file_io import export_ocr_results, import_translation_file, export_rendered_images
-from app.ui.components import ResizableImageLabel, CustomScrollArea, ResultsWidget, TextBoxStylePanel, FindReplaceWidget
+from app.ui.components.image_area.label import ResizableImageLabel
+from app.ui.components.image_area.scroll_container import CustomScrollArea
+from app.ui.components.results_tables import ResultsWidget
+from app.ui.components.textbox_style.panel import TextBoxStylePanel
+from app.ui.components.find_replace import FindReplaceWidget
 from app.ui.widgets.menu_bar import MenuBar
 from app.ui.widgets.progress_bar import CustomProgressBar
 from app.ui.widgets.menus import Menu
-from app.handlers import BatchOCRHandler, SelectionManager
-from app.core import ProjectModel
-from app.ui.dialogs import SettingsDialog
+from app.handlers.ocr_batch_handler import BatchOCRHandler
+from app.handlers.selection_manager import SelectionManager
+from app.core.project_model import ProjectModel
+from app.ui.dialogs.settings_dialog import SettingsDialog
 from app.ui.window.translation_window import TranslationWindow
 from assets import (COLORS, MAIN_STYLESHEET, ADVANCED_CHECK_STYLES, RIGHT_WIDGET_STYLES,
                     DEFAULT_TEXT_STYLE, DELETE_ROW_STYLES, get_style_diff)
