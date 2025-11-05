@@ -4,7 +4,10 @@ from PySide6.QtWidgets import QScrollArea, QWidget, QHBoxLayout, QPushButton
 from PySide6.QtCore import Signal, QPoint
 import qtawesome as qta
 from assets import IV_BUTTON_STYLES
-from app.handlers import StitchHandler, SplitHandler, ContextFillHandler, ManualOCRHandler
+from app.handlers.stitch_handler import StitchHandler
+from app.handlers.split_handler import SplitHandler
+from app.handlers.context_fill_handler import ContextFillHandler
+from app.handlers.manual_ocr_handler import ManualOCRHandler
 # --- MODIFIED: Import the generic Menu class and the new ToggleButton ---
 from app.ui.widgets.menus import Menu, ToggleButton
 from app.ui.components.image_area.label import ResizableImageLabel
