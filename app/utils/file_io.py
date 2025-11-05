@@ -333,6 +333,11 @@ def import_translation_file(self):
                         QMessageBox.warning(self, "Invalid Profile", "Please specify a valid profile name.")
                         return False
                     
+                    # Set flag to prevent textChanged events from deleting translations during profile switch
+                    # add_profile switches to the new profile and emits signals that clear highlighters
+                    if hasattr(self, 'results_widget') and self.results_widget:
+                        self.results_widget._is_updating_views = True
+                    
                     # Apply translation to profile
                     self.model.add_profile(profile_name, translation_data)
                     

@@ -60,8 +60,6 @@ class MainWindow(QMainWindow):
              self.style_panel.style_changed.connect(self.update_text_box_style)
         
         self.batch_handler = None
-
-    # --- NO OTHER CHANGES TO main_window.py ---
     
     def _load_filter_settings(self):
         self.min_text_height = int(self.settings.value("min_text_height", 40))
@@ -231,6 +229,12 @@ class MainWindow(QMainWindow):
         """Tells the model to switch the active profile."""
         if profile_name and profile_name in self.model.profiles and profile_name != self.model.active_profile_name:
             print(f"Switching to active profile: {profile_name}")
+            
+            # Set flag to prevent textChanged events from deleting translations during profile switch
+            # This is crucial because clearing highlighters triggers textChanged events
+            if hasattr(self, 'results_widget') and self.results_widget:
+                self.results_widget._is_updating_views = True
+            
             self.model.active_profile_name = profile_name
             self._on_profile_changed()
             self.on_model_updated(None)
@@ -699,6 +703,11 @@ class MainWindow(QMainWindow):
 
     def handle_translation_completed(self, profile_name, translated_data):
         try:
+            # Set flag to prevent textChanged events from deleting translations during profile switch
+            # add_profile switches to the new profile and emits signals that clear highlighters
+            if hasattr(self, 'results_widget') and self.results_widget:
+                self.results_widget._is_updating_views = True
+            
             self.model.add_profile(profile_name, translated_data)
             # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", 

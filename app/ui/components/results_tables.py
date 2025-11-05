@@ -21,9 +21,10 @@ class ResultsWidget(QWidget):
         self.combine_action = combine_action
         self.find_action = find_action
         self.focused_column = 0
-        self._init_ui()
-        # --- NEW: Connect to the selection manager's signal ---
+        self._is_updating_views = False  # Flag to prevent textChanged from processing during view updates
+        # Connect to the selection manager's signal
         self.selection_manager.selection_changed.connect(self.on_external_selection_changed)
+        self._init_ui()
         
     def _init_ui(self):
         # ... (rest of the _init_ui method is unchanged) ...
@@ -111,10 +112,34 @@ class ResultsWidget(QWidget):
     
     # ... (the rest of the file is unchanged, only the selection logic is modified) ...
     def update_simple_view(self):
+        # Clear the layout - this will delete old widgets
+        # Highlighters should have been cleared by on_profile_changed() before this is called
+        
+        # Set flag to prevent textChanged from processing during widget recreation
+        self._is_updating_views = True
+        
+        # Disconnect textChanged from all existing widgets before clearing to prevent them from firing
+        for i in range(self.simple_scroll_layout.count()):
+            item = self.simple_scroll_layout.itemAt(i)
+            if item:
+                widget = item.widget()
+                if widget:
+                    text_edit = widget.findChild(QTextEdit)
+                    if text_edit:
+                        try:
+                            text_edit.textChanged.disconnect()
+                        except:
+                            pass  # Ignore if not connected
+        
         self.main_window._clear_layout(self.simple_scroll_layout)
+        
         visible_results = [res for res in self.main_window.model.ocr_results if not res.get('is_deleted', False)]
-        for result in visible_results:
+        
+        for idx, result in enumerate(visible_results):
             original_row_number = result['row_number']
+            # Get display text from the current active profile - this ensures new profile text is used
+            display_text = self.main_window.get_display_text(result)
+            
             container = QWidget()
             container.setProperty("ocr_row_number", original_row_number)
             container.setObjectName(f"SimpleViewRowContainer_{original_row_number}")
@@ -122,12 +147,18 @@ class ResultsWidget(QWidget):
             container_layout.setContentsMargins(5, 5, 5, 5); container_layout.setSpacing(10)
             text_frame = QFrame(); text_frame.setStyleSheet(SIMPLE_VIEW_STYLES)
             text_layout = QVBoxLayout(text_frame); text_layout.setContentsMargins(0, 0, 0, 0)
-            display_text = self.main_window.get_display_text(result)
-            text_edit = QTextEdit(display_text)
+            
+            text_edit = QTextEdit()
             text_edit.setStyleSheet(SIMPLE_VIEW_STYLES)
             text_edit.setProperty("ocr_row_number", original_row_number)
             text_edit.installEventFilter(self)
             text_edit.setLineWrapMode(QTextEdit.WidgetWidth)
+            # Set text with signals blocked to prevent any interference during initialization
+            text_edit.blockSignals(True)
+            text_edit.setPlainText(display_text)
+            text_edit.blockSignals(False)
+            
+            # Connect textChanged AFTER setting text to avoid triggering during initialization
             text_edit.textChanged.connect(lambda rn=original_row_number, te=text_edit: self.on_simple_text_changed(rn, te.toPlainText()))
             text_layout.addWidget(text_edit)
             delete_btn = QPushButton(qta.icon('fa5s.trash-alt', color='red'), "")
@@ -136,9 +167,22 @@ class ResultsWidget(QWidget):
             container_layout.addWidget(text_frame, 1); container_layout.addWidget(delete_btn)
             self.simple_scroll_layout.addWidget(container)
         self.simple_scroll_layout.addStretch()
-        if self.main_window.find_replace_widget.isVisible(): self.main_window.find_replace_widget.find_text()
+        
+        # Reset flag after widgets are created and connected
+        # Use QTimer to ensure all textChanged signals from widget creation have been processed
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, lambda: setattr(self, '_is_updating_views', False))
+        
+        # Refresh find widget after widgets are created with new profile text
+        # Use a longer delay to ensure widgets are fully created and rendered before searching/highlighting
+        if self.main_window.find_replace_widget.isVisible(): 
+            QTimer.singleShot(300, lambda: self.main_window.find_replace_widget.find_text())
 
     def on_simple_text_changed(self, original_row_number, text):
+        # Ignore textChanged during view updates (profile changes, widget recreation)
+        if self._is_updating_views:
+            return
+        
         # Always check if text actually changed by comparing with model
         # This prevents false positives from cursor changes, highlighting, etc.
         result_data = self.main_window.model._find_result_by_row_number(original_row_number)[0]
@@ -151,6 +195,7 @@ class ResultsWidget(QWidget):
             
             if normalized_widget_text == normalized_model_text:
                 return
+            
         self.main_window.update_ocr_text(original_row_number, text)
         self._update_table_cell_if_visible(original_row_number, 0, text)
 
@@ -210,6 +255,11 @@ class ResultsWidget(QWidget):
             self.results_table.setCellWidget(visible_row_index, 5, container)
         self.results_table.blockSignals(False)
         self.update_column_resize_modes()
+        # Refresh find widget if visible to update matches for new profile text
+        # Use a delay to ensure table is fully updated before searching/highlighting
+        if self.main_window.find_replace_widget.isVisible(): 
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(300, lambda: self.main_window.find_replace_widget.find_text())
 
     def on_table_focus_changed(self, currentRow, currentColumn, previousRow, previousColumn):
         """

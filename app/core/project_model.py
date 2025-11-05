@@ -381,11 +381,15 @@ class ProjectModel(QObject):
 
     def get_display_text(self, result: dict) -> str:
         """Gets the text to display for a result based on the active profile."""
+        translations = result.get('translations', {})
+        original_text = result.get('text', '')
+        
         if self.active_profile_name != "Original":
-            edited_text = result.get('translations', {}).get(self.active_profile_name)
+            edited_text = translations.get(self.active_profile_name)
             if edited_text is not None:
                 return edited_text
-        return result.get('text', '')
+        
+        return original_text
         
     def clear_standard_results(self):
         """Removes all non-manual OCR results before a new run."""
@@ -443,8 +447,15 @@ class ProjectModel(QObject):
 
         original_text = target_result.get('text', '')
         if new_text == original_text:
-            if self.active_profile_name in target_result['translations']:
-                del target_result['translations'][self.active_profile_name]
+            # Only delete translation if the user explicitly set it back to original
+            # This means: the translation exists AND is different from original
+            # If translation doesn't exist or is already same as original, don't delete
+            if self.active_profile_name != "Original" and self.active_profile_name in target_result['translations']:
+                existing_translation = target_result['translations'][self.active_profile_name]
+                # Only delete if translation was different from original (user explicitly reverted)
+                # If translation equals original, it means there was no translation to begin with, so don't delete
+                if existing_translation != original_text:
+                    del target_result['translations'][self.active_profile_name]
         else:
             target_result['translations'][self.active_profile_name] = new_text
 
