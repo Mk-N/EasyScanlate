@@ -116,7 +116,24 @@ class TranslationWindow(QDialog):
             sorted_profiles.remove("Original")
             sorted_profiles.insert(0, "Original")
         self.source_profile_combo.addItems(sorted_profiles)
-        self.source_profile_combo.setCurrentText("Original")
+        
+        # Default to user edit profile if available, otherwise use "Original"
+        default_profile = "Original"
+        user_edit_profiles = []
+        for profile_name in self.profiles:
+            if profile_name.startswith("User Edit "):
+                try:
+                    num = int(profile_name.split("User Edit ")[1])
+                    user_edit_profiles.append((num, profile_name))
+                except (ValueError, IndexError):
+                    continue
+        
+        if user_edit_profiles:
+            # Sort by number and use the first one
+            user_edit_profiles.sort(key=lambda x: x[0])
+            default_profile = user_edit_profiles[0][1]
+        
+        self.source_profile_combo.setCurrentText(default_profile)
         self.source_profile_combo.currentIndexChanged.connect(self._source_profile_changed)
 
         self.comparison_scroll_area = QScrollArea()
