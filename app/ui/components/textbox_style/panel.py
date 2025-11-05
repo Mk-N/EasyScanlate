@@ -9,7 +9,7 @@ import qtawesome as qta
 from app.ui.components.textbox_style.preset import PresetButton
 # TEXT_BOX_STYLE_PANEL_STYLESHEET is no longer needed here
 from assets import DEFAULT_GRADIENT, TEXT_BOX_STYLE_PANEL_STYLE
-from app.ui.dialogs import CustomColorDialog
+from app.ui.dialogs.BetterColorDialog.MainDialog import CustomColorDialog
 from .shape_panel import ShapeStylePanel
 from .typography_panel import TypographyStylePanel
 
