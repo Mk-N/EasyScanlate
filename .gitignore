@@ -22,3 +22,6 @@ test_torch
 minimal_module
 *temp*
 test_updater
+
+# Exception: GitHub issue templates should be tracked
+!.github/ISSUE_TEMPLATE/
