@@ -17,7 +17,8 @@
   - make protect original text to be for all edits (not just first edit)
 
 ## currently in progress
-  - 
+  - add feature request button on settings
+  - add documentation links throughout the apps
 
 ## not yet started
 
@@ -29,7 +30,6 @@
     - add directional blur to typography
     - add drop shadow to both
     - add 
-  - add issue template for crash reports
   - 2 pane view of manhwa (for original and translated view side by side)(layers and overlays can be individualy toggle off and on)
   - add tool bar on the right
   - add direct retranslate on main window
