@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QFrame
 from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QColor
 import qtawesome as qta
-from app.ui.components import PresetButton
+from app.ui.components.textbox_style.preset import PresetButton
 # TEXT_BOX_STYLE_PANEL_STYLESHEET is no longer needed here
 from assets import DEFAULT_GRADIENT, TEXT_BOX_STYLE_PANEL_STYLE
 from app.ui.dialogs import CustomColorDialog
