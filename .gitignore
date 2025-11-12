@@ -25,3 +25,5 @@ test_updater
 
 # Exception: GitHub issue templates should be tracked
 !.github/ISSUE_TEMPLATE/
+
+mmtl_to_html.py

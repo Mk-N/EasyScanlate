@@ -194,8 +194,8 @@ class ErrorDialog(QDialog):
                         exc_message = parts[1].strip()
                         break
         
-        # Format issue title (truncate if too long)
-        issue_title = f"{exc_type}: {exc_message}"
+        # Format issue title (truncate if too long) with [BUG] prefix
+        issue_title = f"[BUG] {exc_type}: {exc_message}"
         if len(issue_title) > 100:
             issue_title = issue_title[:97] + "..."
         
@@ -242,7 +242,8 @@ class ErrorDialog(QDialog):
         # Create GitHub issue URL with pre-filled data
         params = {
             'title': issue_title,
-            'body': issue_body
+            'body': issue_body,
+            'labels': 'bug'
         }
         url = f"{GITHUB_ISSUES_URL}?{urllib.parse.urlencode(params)}"
         

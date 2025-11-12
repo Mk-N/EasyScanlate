@@ -6,6 +6,8 @@
   - custom error msg box
     - link to github issue report if any error
   - dedicated import/export dialogs for OCR/translation data
+  - add feature request button on settings
+  - add documentation links
 
   #### fixes
   - fix import/export OCR/translation data functionality
@@ -15,10 +17,10 @@
 
   #### modification
   - make protect original text to be for all edits (not just first edit)
+  - make default profile on translation window to be user edit
 
 ## currently in progress
-  - add feature request button on settings
-  - add documentation links throughout the apps
+  - 
 
 ## not yet started
 

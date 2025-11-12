@@ -1,7 +1,7 @@
 ---
 name: Feature Request
 about: Suggest a new feature or enhancement for the application
-title: '[FR] '
+title: '[FR] type title here'
 labels: enhancement
 assignees: ''
 ---
