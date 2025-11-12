@@ -37,10 +37,6 @@ class TypographyStylePanel(QWidget):
         main_layout.setSpacing(12)
         main_layout.setAlignment(Qt.AlignTop)
 
-        # --- Main Title ---
-        typo_label = QLabel("Typography")
-        typo_label.setObjectName("mainLabel")
-        main_layout.addWidget(typo_label)
 
         # --- Color Type Dropdown ---
         self.combo_text_color_type = QComboBox()

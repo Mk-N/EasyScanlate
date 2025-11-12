@@ -1,4 +1,4 @@
-# main_window.py
+# main_window.py - ocr functionality disabled
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QCheckBox, QPushButton,
                              QMessageBox, QSplitter, QComboBox)
@@ -18,14 +18,14 @@ from app.ui.components.find_replace import FindReplaceWidget
 from app.ui.widgets.menu_bar import MenuBar
 from app.ui.widgets.progress_bar import CustomProgressBar
 from app.ui.widgets.menus import Menu
-from app.handlers.ocr_batch_handler import BatchOCRHandler
+# from app.handlers.ocr_batch_handler import BatchOCRHandler # ocr functionality disabled
 from app.handlers.selection_manager import SelectionManager
 from app.core.project_model import ProjectModel
 from app.ui.dialogs.settings_dialog import SettingsDialog
 from app.ui.window.translation_window import TranslationWindow
 from assets import (COLORS, MAIN_STYLESHEET, ADVANCED_CHECK_STYLES, RIGHT_WIDGET_STYLES,
                     DEFAULT_TEXT_STYLE, DELETE_ROW_STYLES, get_style_diff)
-import easyocr, os, gc, json, traceback
+import os, gc, json, traceback # easyocr, # ocr functionality disabled
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -58,13 +58,13 @@ class MainWindow(QMainWindow):
         self.combine_action.triggered.connect(self.results_widget.combine_selected_rows)
 
         self.scroll_content = QWidget()
-        self.reader = None
-        self.ocr_processor = None
+        # self.reader = None # ocr functionality disabled
+        # self.ocr_processor = None # ocr functionality disabled
         
         if hasattr(self, 'style_panel'):
              self.style_panel.style_changed.connect(self.update_text_box_style)
         
-        self.batch_handler = None
+        # self.batch_handler = None # ocr functionality disabled
     
     def _load_filter_settings(self):
         self.min_text_height = int(self.settings.value("min_text_height", 40))
@@ -119,18 +119,19 @@ class MainWindow(QMainWindow):
         self.btn_process = QPushButton(qta.icon('fa5s.magic', color='white'), "Process OCR")
         self.btn_process.setFixedWidth(160)
         self.btn_process.clicked.connect(self.start_ocr)
-        self.btn_process.setEnabled(False)
+        self.btn_process.setEnabled(False)  # Disabled - OCR functionality removed
         button_layout.addWidget(self.btn_process)
         self.btn_stop_ocr = QPushButton(qta.icon('fa5s.stop', color='white'), "Stop OCR")
         self.btn_stop_ocr.setFixedWidth(160)
         self.btn_stop_ocr.clicked.connect(self.stop_ocr)
         self.btn_stop_ocr.setVisible(False)
+        self.btn_stop_ocr.setEnabled(False)  # Disabled - OCR functionality removed
         button_layout.addWidget(self.btn_stop_ocr)
         self.btn_manual_ocr = QPushButton(qta.icon('fa5s.crop-alt', color='white'), "Manual OCR")
         self.btn_manual_ocr.setFixedWidth(160)
         self.btn_manual_ocr.setCheckable(True)
         self.btn_manual_ocr.toggled.connect(self.scroll_area.manual_ocr_handler.toggle_mode)
-        self.btn_manual_ocr.setEnabled(False)
+        self.btn_manual_ocr.setEnabled(False)  # Disabled - OCR functionality removed
         button_layout.addWidget(self.btn_manual_ocr)
         
         file_button_layout = QHBoxLayout()
@@ -151,21 +152,27 @@ class MainWindow(QMainWindow):
         button_layout.addLayout(file_button_layout)
         right_panel.addLayout(button_layout)
 
-        self.right_content_splitter = QSplitter(Qt.Horizontal)
-        self.style_panel = TextBoxStylePanel(default_style=DEFAULT_TEXT_STYLE)
-        self.style_panel.hide()
-        self.right_content_splitter.addWidget(self.style_panel)
-
+        # Create results widget first
         self.results_widget = ResultsWidget(self, self.combine_action, self.find_action, self.selection_manager)
+        
+        # Style panel - always visible above results with resizable splitter
+        self.style_panel = TextBoxStylePanel(default_style=DEFAULT_TEXT_STYLE)
+        self.style_panel.setMinimumHeight(70)  # Reduced minimum height
+        self.style_panel.setMaximumHeight(400)  # Maximum height to prevent excessive size
+        
+        # Create vertical splitter for resizable layout
+        right_splitter = QSplitter(Qt.Vertical)
+        right_splitter.addWidget(self.style_panel)
+        right_splitter.addWidget(self.results_widget)
+        right_splitter.setStretchFactor(0, 0)  # Style panel doesn't stretch
+        right_splitter.setStretchFactor(1, 1)  # Results widget stretches
+        right_splitter.setHandleWidth(5)  # Make splitter handle more visible
+        right_panel.addWidget(right_splitter, 1)
 
+        # Find/replace widget
         self.find_replace_widget = FindReplaceWidget(self)
         right_panel.addWidget(self.find_replace_widget)
         self.find_replace_widget.hide()
-
-        self.right_content_splitter.addWidget(self.results_widget)
-        self.right_content_splitter.setStretchFactor(0, 0)
-        self.right_content_splitter.setStretchFactor(1, 1)
-        right_panel.addWidget(self.right_content_splitter, 1)
         self.style_panel_size = None
 
         # --- FIX ENDS HERE ---
@@ -362,13 +369,14 @@ class MainWindow(QMainWindow):
     def on_selection_changed(self, row_number, source):
         """
         Updates the style panel based on the currently selected row.
+        The style panel is always visible, but its content changes based on selection.
         """
         if row_number is not None:
             current_style = self.get_style_for_row(row_number)
             self.style_panel.update_style_panel(current_style)
-            self.style_panel.show()
         else:
-            self.style_panel.clear_and_hide()
+            # When no textbox is selected, reset to default style
+            self.style_panel.update_style_panel(DEFAULT_TEXT_STYLE)
 
     def get_style_for_row(self, row_number):
         style = {}
@@ -439,30 +447,30 @@ class MainWindow(QMainWindow):
 
 
     def _initialize_ocr_reader(self, context="OCR"):
-        """Initializes the EasyOCR reader if it doesn't exist."""
-        if self.reader:
-            print("EasyOCR reader already initialized.")
-            return True
-        try:
-            lang_code = self.language_map.get(self.model.original_language, 'ko')
-            use_gpu = self.settings.value("use_gpu", "true").lower() == "true"
-            print(f"Initializing EasyOCR reader for {context}: Lang='{lang_code}', GPU={use_gpu}")
-            self.reader = easyocr.Reader([lang_code], gpu=use_gpu, model_storage_directory='OCR/model')
-            print("EasyOCR reader initialized successfully.")
-            return True
-        except Exception as e:
-            error_msg = f"Failed to initialize OCR reader for {context}: {str(e)}\n\n" \
-                        f"Common causes:\n" \
-                        f"- Incorrect language code.\n" \
-                        f"- Missing EasyOCR models (try running OCR once).\n" \
-                        f"- If using GPU: CUDA/driver issues or insufficient VRAM."
-            print(f"Error: {error_msg}")
-            traceback.print_exc()
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-            ErrorDialog.critical(self, "OCR Initialization Error", error_msg, traceback_text)
-            self.reader = None
-            return False
+        """Initializes the EasyOCR reader if it doesn't exist. - disabled """
+        # if self.reader:
+        #     print("EasyOCR reader already initialized.")
+        #     return True
+        # try:
+        #     lang_code = self.language_map.get(self.model.original_language, 'ko')
+        #     use_gpu = self.settings.value("use_gpu", "true").lower() == "true"
+        #     print(f"Initializing EasyOCR reader for {context}: Lang='{lang_code}', GPU={use_gpu}")
+        #     self.reader = easyocr.Reader([lang_code], gpu=use_gpu, model_storage_directory='OCR/model')
+        #     print("EasyOCR reader initialized successfully.")
+        #     return True
+        # except Exception as e:
+        #     error_msg = f"Failed to initialize OCR reader for {context}: {str(e)}\n\n" \
+        #                 f"Common causes:\n" \
+        #                 f"- Incorrect language code.\n" \
+        #                 f"- Missing EasyOCR models (try running OCR once).\n" \
+        #                 f"- If using GPU: CUDA/driver issues or insufficient VRAM."
+        #     print(f"Error: {error_msg}")
+        #     traceback.print_exc()
+        #     exc_type, exc_value, exc_traceback = sys.exc_info()
+        #     traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        #     ErrorDialog.critical(self, "OCR Initialization Error", error_msg, traceback_text)
+        #     self.reader = None
+        return False
 
     def _find_result_by_row_number(self, row_number_to_find):
         return self.model._find_result_by_row_number(row_number_to_find)
@@ -503,114 +511,128 @@ class MainWindow(QMainWindow):
                     widget.apply_translation(self, results_for_this_image, DEFAULT_TEXT_STYLE)
 
     def start_ocr(self):
-        if not self.model.image_paths:
-            QMessageBox.warning(self, "Warning", "No images loaded to process.")
-            return
-        if self.batch_handler:
-            QMessageBox.warning(self, "Warning", "OCR is already running.")
-            return
-        if self.scroll_area.manual_ocr_handler.is_active:
-            QMessageBox.warning(self, "Warning", "Cannot start standard OCR while in Manual OCR mode.")
-            return
+        """OCR functionality disabled - shows message instead"""
+        # if not self.model.image_paths:
+        #     QMessageBox.warning(self, "Warning", "No images loaded to process.")
+        #     return
+        # if self.batch_handler:
+        #     QMessageBox.warning(self, "Warning", "OCR is already running.")
+        #     return
+        # if self.scroll_area.manual_ocr_handler.is_active:
+        #     QMessageBox.warning(self, "Warning", "Cannot start standard OCR while in Manual OCR mode.")
+        #     return
         
-        has_existing_results = any(not res.get('is_manual', False) for res in self.model.ocr_results)
-        if has_existing_results:
-            reply = QMessageBox.question(self, 'Confirm Overwrite',
-                                         "This will overwrite all existing OCR data (except for manual entries). Do you want to continue?",
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if reply == QMessageBox.No:
-                return
+        # has_existing_results = any(not res.get('is_manual', False) for res in self.model.ocr_results)
+        # if has_existing_results:
+        #     reply = QMessageBox.question(self, 'Confirm Overwrite',
+        #                                  "This will overwrite all existing OCR data (except for manual entries). Do you want to continue?",
+        #                                  QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        #     if reply == QMessageBox.No:
+        #         return
 
-        if not self._initialize_ocr_reader("Standard OCR"):
-            return
+        # if not self._initialize_ocr_reader("Standard OCR"):
+        #     return
 
-        self.btn_process.setVisible(False)
-        self.btn_stop_ocr.setVisible(True)
+        # self.btn_process.setVisible(False)
+        # self.btn_stop_ocr.setVisible(True)
 
-        self.model.clear_standard_results()
-        self.on_model_updated(None)
+        # self.model.clear_standard_results()
+        # self.on_model_updated(None)
         
-        self._load_filter_settings()
-        ocr_settings = {
-            "min_text_height": self.min_text_height, "max_text_height": self.max_text_height,
-            "min_confidence": self.min_confidence, "distance_threshold": self.distance_threshold,
-            "batch_size": int(self.settings.value("ocr_batch_size", 8)), "decoder": self.settings.value("ocr_decoder", "beamsearch"),
-            "adjust_contrast": float(self.settings.value("ocr_adjust_contrast", 0.5)), "resize_threshold": int(self.settings.value("ocr_resize_threshold", 1024)),
-            "auto_context_fill": self.settings.value("auto_context_fill", "false").lower() == "true"
-        }
-        self.batch_handler = BatchOCRHandler(
-            image_paths=self.model.image_paths, 
-            reader=self.reader, 
-            settings=ocr_settings, 
-            starting_row_number=self.model.next_global_row_number,
-            model=self.model,
-            progress_bar=self.ocr_progress
-        )
-        self.batch_handler.batch_finished.connect(self.on_batch_finished)
-        self.batch_handler.error_occurred.connect(self.on_batch_error)
-        self.batch_handler.processing_stopped.connect(self.on_batch_stopped)
-        self.batch_handler.auto_inpaint_requested.connect(self.on_auto_inpaint_requested)
-        self.batch_handler.start_processing()
-
+        # self._load_filter_settings()
+        # ocr_settings = {
+        #     "min_text_height": self.min_text_height, "max_text_height": self.max_text_height,
+        #     "min_confidence": self.min_confidence, "distance_threshold": self.distance_threshold,
+        #     "batch_size": int(self.settings.value("ocr_batch_size", 8)), "decoder": self.settings.value("ocr_decoder", "beamsearch"),
+        #     "adjust_contrast": float(self.settings.value("ocr_adjust_contrast", 0.5)), "resize_threshold": int(self.settings.value("ocr_resize_threshold", 1024)),
+        #     "auto_context_fill": self.settings.value("auto_context_fill", "false").lower() == "true"
+        # }
+        # self.batch_handler = BatchOCRHandler(
+        #     image_paths=self.model.image_paths, 
+        #     reader=self.reader, 
+        #     settings=ocr_settings, 
+        #     starting_row_number=self.model.next_global_row_number,
+        #     model=self.model,
+        #     progress_bar=self.ocr_progress
+        # )
+        # self.batch_handler.batch_finished.connect(self.on_batch_finished)
+        # self.batch_handler.error_occurred.connect(self.on_batch_error)
+        # self.batch_handler.processing_stopped.connect(self.on_batch_stopped)
+        # self.batch_handler.auto_inpaint_requested.connect(self.on_auto_inpaint_requested)
+        # self.batch_handler.start_processing()
+        QMessageBox.information(self, "OCR Disabled", "OCR processing has been disabled in this version.")
+        return
     def on_image_processed(self, new_results):
         """ DELEGATED: Adds new OCR results to the model. """
-        self.model.add_new_ocr_results(new_results)
+        """OCR functionality disabled - placeholder method"""
+        # self.model.add_new_ocr_results(new_results)
+        pass
 
     def on_batch_finished(self, next_row_number):
         """Handles the successful completion of the entire batch."""
-        print("MainWindow: Batch finished.")
-        self.model.next_global_row_number = next_row_number
-        self.cleanup_ocr_session()
-        # Success message - keep QMessageBox.information for non-error cases
-        QMessageBox.information(self, "Finished", "OCR processing completed for all images.")
+        """OCR functionality disabled - placeholder method"""
+        # print("MainWindow: Batch finished.")
+        # self.model.next_global_row_number = next_row_number
+        # self.cleanup_ocr_session()
+        # # Success message - keep QMessageBox.information for non-error cases
+        # QMessageBox.information(self, "Finished", "OCR processing completed for all images.")
+        pass
     
     def on_batch_error(self, message):
         """Handles a critical error during the batch process."""
-        print(f"MainWindow: Batch error received: {message}")
-        self.cleanup_ocr_session()
-        ErrorDialog.critical(self, "OCR Error", message)
+        """OCR functionality disabled - placeholder method"""
+        # print(f"MainWindow: Batch error received: {message}")
+        # self.cleanup_ocr_session()
+        # ErrorDialog.critical(self, "OCR Error", message)
+        pass
 
     def on_batch_stopped(self):
         """Handles the UI cleanup after the user manually stops the process."""
-        print("MainWindow: Batch processing was stopped by user.")
-        self.cleanup_ocr_session()
-        QMessageBox.information(self, "Stopped", "OCR processing was stopped.")
+        """OCR functionality disabled - placeholder method"""
+        # print("MainWindow: Batch processing was stopped by user.")
+        # self.cleanup_ocr_session()
+        # QMessageBox.information(self, "Stopped", "OCR processing was stopped.")
+        pass
 
     def cleanup_ocr_session(self):
         """Resets UI and state after an OCR run (success, error, or stop)."""
-        self.btn_stop_ocr.setVisible(False)
-        self.btn_process.setVisible(True)
-        self.btn_process.setEnabled(bool(self.model.image_paths))
-        self.ocr_progress.reset()
-        if self.batch_handler:
-            self.batch_handler.deleteLater()
-            self.batch_handler = None
-        gc.collect()
+        """OCR functionality disabled - placeholder method"""
+        # self.btn_stop_ocr.setVisible(False)
+        # self.btn_process.setVisible(True)
+        # self.btn_process.setEnabled(bool(self.model.image_paths))
+        # self.ocr_progress.reset()
+        # if self.batch_handler:
+        #     self.batch_handler.deleteLater()
+        #     self.batch_handler = None
+        # gc.collect()
+        pass
         
     def stop_ocr(self):
         """Stops the currently running OCR process by signaling the handler."""
-        print("MainWindow: Sending stop request to batch handler...")
-        if self.batch_handler:
-            self.batch_handler.stop()
-        else:
-            print("No active batch handler to stop.")
-            # If no handler, but UI is stuck, reset it
-            self.cleanup_ocr_session()
+        """OCR functionality disabled - placeholder method"""
+        # print("MainWindow: Sending stop request to batch handler...")
+        # if self.batch_handler:
+        #     self.batch_handler.stop()
+        # else:
+        #     print("No active batch handler to stop.")
+        #     # If no handler, but UI is stuck, reset it
+        #     self.cleanup_ocr_session()
+        pass
 
     def on_auto_inpaint_requested(self, filename, bounding_boxes):
-        """
-        SLOT: Handles the request from BatchOCRHandler to perform automatic inpainting.
-        """
-        target_label = None
-        for i in range(self.scroll_layout.count()):
-            widget = self.scroll_layout.itemAt(i).widget()
-            if isinstance(widget, ResizableImageLabel) and widget.filename == filename:
-                target_label = widget
-                break
+        """SLOT: Handles the request from BatchOCRHandler to perform automatic inpainting."""
+        """OCR functionality disabled - placeholder method"""
+        # target_label = None
+        # for i in range(self.scroll_layout.count()):
+        #     widget = self.scroll_layout.itemAt(i).widget()
+        #     if isinstance(widget, ResizableImageLabel) and widget.filename == filename:
+        #         target_label = widget
+        #         break
         
-        if target_label:
-            self.scroll_area.context_fill_handler.perform_auto_inpainting(target_label, bounding_boxes)
- 
+        # if target_label:
+        #     self.scroll_area.context_fill_handler.perform_auto_inpainting(target_label, bounding_boxes)
+        pass
+
     def update_image_text_box(self, row_number, new_text):
         target_item = self.find_textbox_item(row_number)
         if target_item:
@@ -781,10 +803,11 @@ class MainWindow(QMainWindow):
                 shutil.rmtree(self.model.temp_dir)
             except Exception as e:
                 print(f"Warning: Could not remove temporary directory {self.model.temp_dir}: {e}")
-        if self.ocr_processor and self.ocr_processor.isRunning():
-            print("Stopping OCR processor on close...")
-            self.ocr_processor.stop_requested = True
-            self.ocr_processor.wait(500)
-            if self.ocr_processor.isRunning():
-                 self.ocr_processor.terminate()
+        # OCR functionality disabled - no processor to stop
+        # if self.ocr_processor and self.ocr_processor.isRunning():
+        #     print("Stopping OCR processor on close...")
+        #     self.ocr_processor.stop_requested = True
+        #     self.ocr_processor.wait(500)
+        #     if self.ocr_processor.isRunning():
+        #          self.ocr_processor.terminate()
         super().closeEvent(event)

@@ -79,10 +79,6 @@ class ShapeStylePanel(QWidget):
         main_layout.setSpacing(12)
         main_layout.setAlignment(Qt.AlignTop)
 
-        shape_label = QLabel("Shape")
-        shape_label.setObjectName("mainLabel")
-        main_layout.addWidget(shape_label)
-
         self.combo_fill_type = QComboBox()
         self.combo_fill_type.setObjectName("styleCombo")
         self.combo_fill_type.addItems(["Solid", "Linear Gradient"])
