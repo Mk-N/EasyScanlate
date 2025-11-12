@@ -161,11 +161,11 @@ if !errorlevel! neq 0 (
     goto :eof
 )
 
-:: Push all local tags that don't exist on the remote.
-echo Pushing tags to remote...
-git push --tags
+:: Push the specific tag to remote.
+echo Pushing tag to remote...
+git push origin %CHOSEN_TAG%
 if !errorlevel! neq 0 (
-    echo ERROR: Failed to push tags to the remote repository.
+    echo ERROR: Failed to push tag to the remote repository.
     goto :eof
 )
 
