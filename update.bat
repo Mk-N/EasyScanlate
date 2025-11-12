@@ -13,7 +13,7 @@ echo.
 :: --- Configuration ---
 set "STABLE_BRANCH=stable"
 set "MAIN_BRANCH=main"
-set "INSTALLER_FILE=dev/installer/installer.nsi"
+set "INSTALLER_FILE=dev\installer\installer.nsi"
 
 :: ============================
 :: 1. Check Git Tag
