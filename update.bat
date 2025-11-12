@@ -57,6 +57,10 @@ if /i not "!CURRENT_BRANCH!"=="%STABLE_BRANCH%" (
 )
 echo.
 
+:: Define a version string without the leading 'v' early so it can be used to update files
+set "VERSION_WITHOUT_V=%CHOSEN_TAG:v=%"
+
+
 :: ============================
 :: 3. Merge from Main Branch
 :: ============================
@@ -76,10 +80,44 @@ if /i "!MERGE_MAIN!"=="y" (
 echo.
 
 :: =================================================
+:: 3.5 Update workflow versions in GitHub Actions
+:: =================================================
+echo --- Step 3.5: Updating workflow files with version %VERSION_WITHOUT_V% ---
+set "WORKFLOW_FILE=.github\workflows\main.yml"
+if not exist "%WORKFLOW_FILE%" (
+    echo WARNING: Workflow file '%WORKFLOW_FILE%' not found. Skipping workflow update.
+) else (
+    echo Replacing file-version and product-version in '%WORKFLOW_FILE%'...
+    powershell -Command ^
+      "$p=(Resolve-Path -LiteralPath '%WORKFLOW_FILE%').Path; $c=Get-Content $p -Raw; $c=$c -replace 'file-version:\\s*\"\d+\.\d+\.\d+\"','file-version: \"%VERSION_WITHOUT_V%\"'; $c=$c -replace 'product-version:\\s*\"\d+\.\d+\.\d+\"','product-version: \"%VERSION_WITHOUT_V%\"'; Set-Content -Path $p -Value $c"
+
+    if !errorlevel! neq 0 (
+        echo ERROR: Failed to update workflow file.
+        goto :eof
+    )
+
+    echo Committing and pushing workflow version changes...
+    git add "%WORKFLOW_FILE%"
+    git commit -m "chore: Update workflow versions to %CHOSEN_TAG%"
+    if !errorlevel! neq 0 (
+        echo ERROR: Failed to commit workflow version change.
+        goto :eof
+    )
+
+    git push origin %STABLE_BRANCH%
+    if !errorlevel! neq 0 (
+        echo ERROR: Failed to push workflow change.
+        goto :eof
+    )
+
+    echo Workflow updated and pushed successfully.
+)
+
+
+:: =================================================
 :: 4. Verify and Update Installer Version
 :: =================================================
 echo --- Step 4: Verifying and Updating Installer Version ---
-set "VERSION_WITHOUT_V=%CHOSEN_TAG:v=%"
 
 :: Extract the current version from the installer file
 echo Checking current installer version...
