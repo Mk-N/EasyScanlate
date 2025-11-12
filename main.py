@@ -162,8 +162,8 @@ class Preloader(QThread):
         Handles multi-part, pausable, and resumable downloads.
         """
         # --- MODIFIED: Use the new, targeted functional checks ---
-        torch_installed = _is_torch_functional()
         numpy_installed = _is_numpy_functional()
+        torch_installed = _is_torch_functional()
         
         if torch_installed and numpy_installed:
             self.progress_update.emit("PyTorch and NumPy libraries found.")
