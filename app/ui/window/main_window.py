@@ -15,6 +15,7 @@ from app.ui.components.image_area.scroll_container import CustomScrollArea
 from app.ui.components.results_tables import ResultsWidget
 from app.ui.components.textbox_style.panel import TextBoxStylePanel
 from app.ui.components.find_replace import FindReplaceWidget
+from app.ui.components.translation_chat import TranslationChatWidget
 from app.ui.widgets.menu_bar import MenuBar
 from app.ui.widgets.progress_bar import CustomProgressBar
 from app.ui.widgets.menus import Menu
@@ -167,7 +168,6 @@ class MainWindow(QMainWindow):
         right_splitter.setStretchFactor(0, 0)  # Style panel doesn't stretch
         right_splitter.setStretchFactor(1, 1)  # Results widget stretches
         right_splitter.setHandleWidth(5)  # Make splitter handle more visible
-        right_panel.addWidget(right_splitter, 1)
 
         # Find/replace widget
         self.find_replace_widget = FindReplaceWidget(self)
@@ -175,7 +175,21 @@ class MainWindow(QMainWindow):
         self.find_replace_widget.hide()
         self.style_panel_size = None
 
-        # --- FIX ENDS HERE ---
+        # Create translation chat component
+        self.translation_chat = TranslationChatWidget()
+        self.translation_chat.translation_complete.connect(self.handle_translation_completed)
+        
+        # Initialize translation chat with current data
+        self._update_translation_chat_data()
+        
+        # Create horizontal splitter for results/style panel and translation chat
+        content_splitter = QSplitter(Qt.Horizontal)
+        content_splitter.addWidget(right_splitter)
+        content_splitter.addWidget(self.translation_chat)
+        content_splitter.setStretchFactor(0, 2)  # Results/style panel gets more space
+        content_splitter.setStretchFactor(1, 1)  # Translation chat gets less space
+        content_splitter.setHandleWidth(5)
+        right_panel.addWidget(content_splitter, 1)
 
         bottom_controls_layout = QHBoxLayout()
         self.btn_translate = QPushButton(qta.icon('fa5s.language', color='white'), "AI Translation")
@@ -236,6 +250,9 @@ class MainWindow(QMainWindow):
             index = self.profile_selector.findText(self.model.active_profile_name)
             if index != -1: self.profile_selector.setCurrentIndex(index)
         self.profile_selector.blockSignals(False)
+        
+        # Also update translation chat profiles
+        self._update_translation_chat_data()
 
     def switch_active_profile(self, profile_name):
         """Tells the model to switch the active profile."""
@@ -319,6 +336,7 @@ class MainWindow(QMainWindow):
 
         self.update_profile_selector()
         self.on_model_updated(None)
+        self._update_translation_chat_data()
         print(f"Project '{self.model.project_name}' loaded and UI populated.")
     
     def handle_inpaint_record_deleted(self, record_id):
@@ -361,6 +379,7 @@ class MainWindow(QMainWindow):
                         break
 
         self.update_all_views(affected_filenames)
+        self._update_translation_chat_data()
 
     def get_display_text(self, result):
         """ DELEGATED: Asks the model for the correct text to display. """
@@ -786,6 +805,20 @@ class MainWindow(QMainWindow):
 
     def export_ocr_results(self):
         export_ocr_results(self)
+
+    def _update_translation_chat_data(self):
+        """Update the translation chat widget with current OCR results and profiles."""
+        if hasattr(self, 'translation_chat'):
+            api_key = self.settings.value("gemini_api_key", "")
+            model_name = self.settings.value("gemini_model", "gemini-1.5-flash-latest")
+            
+            # Pass current OCR results and profiles to the translation chat
+            self.translation_chat.set_data(
+                api_key=api_key,
+                model_name=model_name,
+                ocr_results=self.model.ocr_results,
+                profiles=list(self.model.profiles.keys())
+            )
 
     def save_project(self):
         result_message = self.model.save_project()
