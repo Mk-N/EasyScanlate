@@ -2,17 +2,26 @@
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QCheckBox, QPushButton,
                              QMessageBox, QSplitter, QComboBox)
+import traceback
+import sys
+import json
+from app.ui.dialogs.error_dialog import ErrorDialog
 from PySide6.QtCore import Qt, QSettings, QPoint, QRectF
 from PySide6.QtGui import QPixmap, QKeySequence, QAction, QColor
 import qtawesome as qta
 from app.utils.file_io import export_ocr_results, import_translation_file, export_rendered_images
-from app.ui.components import ResizableImageLabel, CustomScrollArea, ResultsWidget, TextBoxStylePanel, FindReplaceWidget
+from app.ui.components.image_area.label import ResizableImageLabel
+from app.ui.components.image_area.scroll_container import CustomScrollArea
+from app.ui.components.results_tables import ResultsWidget
+from app.ui.components.textbox_style.panel import TextBoxStylePanel
+from app.ui.components.find_replace import FindReplaceWidget
 from app.ui.widgets.menu_bar import MenuBar
 from app.ui.widgets.progress_bar import CustomProgressBar
 from app.ui.widgets.menus import Menu
-from app.handlers import BatchOCRHandler, SelectionManager
-from app.core import ProjectModel
-from app.ui.dialogs import SettingsDialog
+from app.handlers.ocr_batch_handler import BatchOCRHandler
+from app.handlers.selection_manager import SelectionManager
+from app.core.project_model import ProjectModel
+from app.ui.dialogs.settings_dialog import SettingsDialog
 from app.ui.window.translation_window import TranslationWindow
 from assets import (COLORS, MAIN_STYLESHEET, ADVANCED_CHECK_STYLES, RIGHT_WIDGET_STYLES,
                     DEFAULT_TEXT_STYLE, DELETE_ROW_STYLES, get_style_diff)
@@ -31,6 +40,8 @@ class MainWindow(QMainWindow):
         self.model.project_load_failed.connect(self.on_project_load_failed)
         self.model.model_updated.connect(self.on_model_updated)
         self.model.profiles_updated.connect(self.update_profile_selector)
+        self.model.profiles_updated.connect(self._on_profile_list_changed)
+        self.model.profile_created_for_user_edit.connect(self._on_profile_created_for_user_edit)
 
         self.selection_manager = SelectionManager(self.model, self)
         self.selection_manager.selection_changed.connect(self.on_selection_changed)
@@ -54,8 +65,6 @@ class MainWindow(QMainWindow):
              self.style_panel.style_changed.connect(self.update_text_box_style)
         
         self.batch_handler = None
-
-    # --- NO OTHER CHANGES TO main_window.py ---
     
     def _load_filter_settings(self):
         self.min_text_height = int(self.settings.value("min_text_height", 40))
@@ -225,8 +234,25 @@ class MainWindow(QMainWindow):
         """Tells the model to switch the active profile."""
         if profile_name and profile_name in self.model.profiles and profile_name != self.model.active_profile_name:
             print(f"Switching to active profile: {profile_name}")
+            
+            # Set flag to prevent textChanged events from deleting translations during profile switch
+            # This is crucial because clearing highlighters triggers textChanged events
+            if hasattr(self, 'results_widget') and self.results_widget:
+                self.results_widget._is_updating_views = True
+            
             self.model.active_profile_name = profile_name
+            self._on_profile_changed()
             self.on_model_updated(None)
+    
+    def _on_profile_changed(self):
+        """Handles profile changes by notifying find widget."""
+        if hasattr(self, 'find_replace_widget'):
+            self.find_replace_widget.on_profile_changed()
+    
+    def _on_profile_list_changed(self):
+        """Handles profile list changes (additions/deletions)."""
+        if hasattr(self, 'find_replace_widget'):
+            self.find_replace_widget.on_profile_changed()
 
     def show_settings_dialog(self):
         dialog = SettingsDialog(self)
@@ -250,7 +276,7 @@ class MainWindow(QMainWindow):
         self.model.load_project(mmtl_path, temp_dir)
 
     def on_project_load_failed(self, error_msg):
-        QMessageBox.critical(self, "Project Load Error", error_msg)
+        ErrorDialog.critical(self, "Project Load Error", error_msg)
         self.close()
 
     def on_project_loaded(self):
@@ -432,7 +458,9 @@ class MainWindow(QMainWindow):
                         f"- If using GPU: CUDA/driver issues or insufficient VRAM."
             print(f"Error: {error_msg}")
             traceback.print_exc()
-            QMessageBox.critical(self, "OCR Initialization Error", error_msg)
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "OCR Initialization Error", error_msg, traceback_text)
             self.reader = None
             return False
 
@@ -533,13 +561,14 @@ class MainWindow(QMainWindow):
         print("MainWindow: Batch finished.")
         self.model.next_global_row_number = next_row_number
         self.cleanup_ocr_session()
+        # Success message - keep QMessageBox.information for non-error cases
         QMessageBox.information(self, "Finished", "OCR processing completed for all images.")
     
     def on_batch_error(self, message):
         """Handles a critical error during the batch process."""
         print(f"MainWindow: Batch error received: {message}")
         self.cleanup_ocr_session()
-        QMessageBox.critical(self, "OCR Error", message)
+        ErrorDialog.critical(self, "OCR Error", message)
 
     def on_batch_stopped(self):
         """Handles the UI cleanup after the user manually stops the process."""
@@ -590,20 +619,60 @@ class MainWindow(QMainWindow):
                 target_item.adjust_font_size()
 
     def update_ocr_text(self, row_number, new_text):
+        # Temporarily block signals to avoid triggering model_updated during the update
+        was_blocked = self.model.blockSignals(True)
+        profile_created_for_user = False
+        was_original_before = self.model.active_profile_name == "Original"
         try:
-            self.model.model_updated.disconnect(self.on_model_updated)
-        except TypeError:
-            pass
-
-        try:
-            if self.model.active_profile_name == "Original":
-                 QMessageBox.information(self, "Edit Profile Created",
-                                         f"First edit detected. A new profile 'User Edit 1' has been created and set as active. "
-                                         "Your original OCR text is preserved.")
-            self.model.update_text(row_number, new_text)
-            self.update_image_text_box(row_number, new_text)
+            result = self.model.update_text(row_number, new_text, is_user_edit=True)
+            # Handle both old return format (error, success) and new format (error, success, profile_created, should_show_message)
+            if len(result) >= 3:
+                if len(result) == 4:
+                    _, _, _, should_show_message = result
+                    profile_created_for_user = should_show_message
+                else:
+                    # Old 3-value format
+                    _, _, profile_created_for_user = result
+            
+            # Check if profile was routed (switched from Original to user edit)
+            # This happens when we route to an existing user edit profile
+            profile_routed = was_original_before and self.model.active_profile_name != "Original"
+            
+            # Get the actual text that was saved (might be different from new_text if deleted content was preserved)
+            result_data, _ = self.model._find_result_by_row_number(row_number)
+            if result_data:
+                actual_saved_text = self.model.get_display_text(result_data)
+                # If the saved text is different from what user typed, update the widget to show the saved text
+                if actual_saved_text != new_text:
+                    # The model preserved the user edit - update widget to reflect this
+                    # Update both simple view and table view if visible
+                    if hasattr(self, 'results_widget') and self.results_widget:
+                        self.results_widget._update_simple_view_text_if_visible(row_number, actual_saved_text)
+                        self.results_widget._update_table_cell_if_visible(row_number, 0, actual_saved_text)
+                self.update_image_text_box(row_number, actual_saved_text)
+            else:
+                self.update_image_text_box(row_number, new_text)
         finally:
-            self.model.model_updated.connect(self.on_model_updated)
+            # Restore previous signal blocking state
+            self.model.blockSignals(was_blocked)
+            # Emit signals after unblocking if profile was created for user edit
+            if profile_created_for_user:
+                self.model.profiles_updated.emit()
+                self.model.profile_created_for_user_edit.emit()
+            # If profile was routed to existing user edit, update UI to reflect the switch
+            elif profile_routed:
+                # Update profile selector to show we're now on user edit profile
+                # This ensures the UI reflects that we're editing in user edit profile, not Original
+                self.update_profile_selector()
+                # Note: We don't do a full view update here to avoid interrupting the user's editing session
+                # The widget already has the correct text (the edited/deleted text), and other widgets
+                # will update naturally when model_updated is emitted from update_text
+    
+    def _on_profile_created_for_user_edit(self):
+        """Shows message when a profile is created for a user edit."""
+        QMessageBox.information(self, "Edit Profile Created",
+                                f"First edit detected. A new profile 'User Edit 1' has been created and set as active. "
+                                "Your original OCR text is preserved.")
 
     def combine_rows_in_model(self, first_row_number, combined_text, min_confidence, rows_to_delete):
         if self.model.active_profile_name == "Original":
@@ -614,9 +683,10 @@ class MainWindow(QMainWindow):
         if success:
             if self.find_replace_widget.isVisible():
                 self.find_replace_widget.find_text()
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", message)
         else:
-            QMessageBox.critical(self, "Error", message)
+            ErrorDialog.critical(self, "Error", message)
     
     def toggle_advanced_mode(self, state):
         self.results_widget.right_content_stack.setCurrentIndex(1 if state else 0)
@@ -665,22 +735,24 @@ class MainWindow(QMainWindow):
 
     def handle_translation_completed(self, profile_name, translated_data):
         try:
+            # Set flag to prevent textChanged events from deleting translations during profile switch
+            # add_profile switches to the new profile and emits signals that clear highlighters
+            if hasattr(self, 'results_widget') and self.results_widget:
+                self.results_widget._is_updating_views = True
+            
             self.model.add_profile(profile_name, translated_data)
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", 
                 f"Translation successfully applied to profile:\n'{profile_name}'")
         except Exception as e:
-            QMessageBox.critical(self, "Import Error", f"Failed to apply translation: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Import Error", f"Failed to apply translation: {str(e)}", traceback_text)
             traceback.print_exc()
 
     def import_translation(self):
-        profile_name = "Imported Translation"
-        try:
-            content = import_translation_file(self)
-            if content:
-                 translation_data = json.loads(content)
-                 self.model.add_profile(profile_name, translation_data)
-        except Exception as e:
-            QMessageBox.critical(self, "Import Error", f"Failed to import and apply translation file: {str(e)}")
+        """Import translation file - delegates to file_io handler."""
+        import_translation_file(self)
 
     def update_shortcut(self):
         combine_shortcut = self.settings.value("combine_shortcut", "Ctrl+G")
@@ -696,9 +768,10 @@ class MainWindow(QMainWindow):
     def save_project(self):
         result_message = self.model.save_project()
         if "successfully" in result_message:
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Saved", result_message)
         else:
-            QMessageBox.critical(self, "Save Error", result_message)
+            ErrorDialog.critical(self, "Save Error", result_message)
 
     def closeEvent(self, event):
         if hasattr(self.model, 'temp_dir') and self.model.temp_dir and os.path.exists(self.model.temp_dir):

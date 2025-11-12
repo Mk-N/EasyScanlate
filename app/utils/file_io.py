@@ -1,9 +1,10 @@
 import os
 import ast
 import json
-from PySide6.QtWidgets import QMessageBox, QFileDialog
-from PySide6.QtCore import QRectF
-from app.ui.components import ResizableImageLabel
+from PySide6.QtWidgets import QMessageBox, QFileDialog, QInputDialog
+from PySide6.QtCore import QRectF, QDir
+from app.ui.components.image_area.label import ResizableImageLabel
+from app.core.translations import generate_for_translate_content, import_translation_file_content
 import zipfile
 
 def export_translated_images_to_zip(image_paths_with_names, output_path):
@@ -20,129 +21,132 @@ def export_translated_images_to_zip(image_paths_with_names, output_path):
         return None, False
 
 def export_ocr_results(self):
-    """Export OCR results to either a JSON file (Master) or a Markdown file (For-Translate)."""
+    """Export OCR results to either a JSON file (Master) or an XML file (For-Translate)."""
     if not self.model.ocr_results:
         QMessageBox.warning(self, "Error", "No OCR results to export.")
         return
 
-    # Ask user to choose export type
-    msg = QMessageBox()
-    msg.setIcon(QMessageBox.Question)
-    msg.setWindowTitle("Export OCR")
-    msg.setText("Choose export type:")
-    master_btn = msg.addButton("Master (JSON)", QMessageBox.AcceptRole)
-    translate_btn = msg.addButton("For-Translate (Markdown)", QMessageBox.AcceptRole)
-    msg.addButton(QMessageBox.Cancel)
-    msg.exec_()
-
-    if msg.clickedButton() == master_btn:
-        export_type = 'master'
-    elif msg.clickedButton() == translate_btn:
-        export_type = 'for-translate'
-    else:
-        return  # User cancelled
-
-    # Generate content based on export type
-    if export_type == 'master':
+    try:
+        from app.ui.dialogs.import_export_dialog import ExportDialog
+        from PySide6.QtWidgets import QDialog
+        
+        # Get available profiles
+        available_profiles = list(self.model.profiles.keys())
+        if not available_profiles:
+            available_profiles = ["Original"]
+        
+        # Get project info for default path
+        project_directory = os.path.dirname(self.model.mmtl_path) if self.model.mmtl_path else None
+        project_name = self.model.project_name if hasattr(self.model, 'project_name') else None
+        
+        # Show export dialog
+        dialog = ExportDialog(self, available_profiles, project_name, project_directory)
+        if dialog.exec_() != QDialog.Accepted:
+            return
+        
+        config = dialog.get_export_config()
+        
         try:
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "Export OCR Results", "", "JSON Files (*.json)"
-            )
-            if not file_path:
-                return
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(self.ocr_results, f, ensure_ascii=False, indent=4)
-            QMessageBox.information(self, "Success", "OCR results exported successfully in JSON format.")
+            file_path = config['output_path']
+            
+            if config['format'] == 'master':
+                # Export as Master JSON
+                indent = 4 if config['pretty_print'] else None
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.model.ocr_results, f, ensure_ascii=False, indent=indent)
+                QMessageBox.information(self, "Success", "OCR results exported successfully in JSON format.")
+            
+            elif config['format'] == 'for-translate':
+                # Export as For-Translate XML/TXT
+                profile_name = config['profile_name']
+                content = generate_for_translate_content(self.model.ocr_results, profile_name)
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                format_str = config['file_format'].upper()
+                QMessageBox.information(self, "Success", 
+                                       f"OCR results exported successfully in {format_str} format.\nProfile: {profile_name}")
+        
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export: {str(e)}")
+            import traceback
+            from app.ui.dialogs.error_dialog import ErrorDialog
+            ErrorDialog.critical(self, "Export Error", f"Failed to export OCR results:\n{str(e)}", traceback.format_exc())
+    except Exception as e:
+        import traceback
+        from app.ui.dialogs.error_dialog import ErrorDialog
+        ErrorDialog.critical(
+            self, "Dialog Error",
+            f"Failed to open export dialog:\n{str(e)}",
+            traceback.format_exc()
+        )
 
-    elif export_type == 'for-translate':
-        content = "<!-- type: for-translate -->\n\n"
-        grouped_results = {}
-        extensions = set()
-
-        # Group results by filename while preserving row numbers
-        for result in self.ocr_results:
-            filename = result['filename']
-            ext = os.path.splitext(filename)[1].lstrip('.').lower()
-            extensions.add(ext)
-            text = result['text']
-            row_number = result['row_number']  # This will now always have a value
-            
-            if filename not in grouped_results:
-                grouped_results[filename] = []
-            grouped_results[filename].append((text, row_number))
-
-        # Add type and extension header
-        if len(extensions) == 1:
-            content += f"<!-- ext: {list(extensions)[0]} -->\n\n"
-
-        # Write grouped results with filename headers
-        for idx, (filename, texts) in enumerate(grouped_results.items()):
-            if idx > 0:
-                content += "\n\n"
-            content += f"<!-- file: {filename} -->\n\n"
-            
-            # Sort texts by row number to maintain order
-            sorted_texts = sorted(texts, key=lambda x: x[1])
-            
-            for text, row_number in sorted_texts:
-                lines = text.split('\n')
-                for line in lines:
-                    content += f"{line.strip()}\n"
-                    content += f"-/{row_number}\\-\n"  # This will now always have a valid number
-
-
-        # Get save path and write to file
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export OCR Results", "", "Markdown Files (*.md)"
+def import_master_file(self, file_path=None, skip_confirmation=False):
+    """Import Master (JSON) file and replace entire OCR results.
+    
+    Args:
+        file_path: Optional file path. If None, opens file dialog.
+        skip_confirmation: If True, skip the confirmation dialog (used when called from ImportDialog).
+    
+    Returns:
+        List of OCR results if successful, None otherwise.
+    """
+    if file_path is None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import Master File", "", "JSON Files (*.json);;All Files (*.*)"
         )
         if not file_path:
-            return
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            QMessageBox.information(self, "Success", "OCR results exported successfully in Markdown format.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to export: {str(e)}")
-
-def import_translation_file(self):
-    """Import translation from an exported file (JSON for Master, Markdown for For-Translate)."""
-    file_path, _ = QFileDialog.getOpenFileName(
-        self, "Import Translation", "", "Files (*.json *.md)"
-    )
-    if not file_path:
-        return
+            return None
 
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             content = file.read()
+        
+        new_ocr_results = json.loads(content)
+        if not isinstance(new_ocr_results, list):
+            raise ValueError("Invalid JSON format: Expected a list of OCR results.")
 
-        if file_path.endswith('.json'):
-            # Parse JSON for Master format
-            new_ocr_results = json.loads(content)
-            if not isinstance(new_ocr_results, list):
-                raise ValueError("Invalid JSON format: Expected a list of OCR results.")
+        # Check if we have existing OCR results (only if not skipping confirmation)
+        if not skip_confirmation and self.model.ocr_results:
+            reply = QMessageBox.question(
+                self,
+                "Replace OCR Results?",
+                "This will overwrite existing OCR data. Continue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return None
 
-            # Check if we have existing OCR results
-            if self.ocr_results:
-                reply = QMessageBox.question(
-                    self,
-                    "Replace OCR Results?",
-                    "This will overwrite existing OCR data. Continue?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
-                )
-                if reply != QMessageBox.Yes:
-                    return
+        return new_ocr_results
 
-            self.ocr_results = new_ocr_results
-            self.update_results_table()
-            QMessageBox.information(self, "Success", "Master file imported successfully!\n"
-                                f"Loaded {len(new_ocr_results)} OCR entries.")
+    except Exception as e:
+        import traceback
+        from app.ui.dialogs.error_dialog import ErrorDialog
+        ErrorDialog.critical(
+            self, "Import Error",
+            f"Failed to import master file:\n{str(e)}",
+            traceback.format_exc()
+        )
+        return None
 
+def import_translation_file_content_only(file_path):
+    """
+    Parse translation file (XML/TXT/MD) and return translation data dictionary.
+    Returns: {filename: {row_number_str: translated_text}} or None on error.
+    Handles both new XML format and old Markdown format for backward compatibility.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        # Detect file type
+        if file_path.endswith('.xml') or file_path.endswith('.txt'):
+            # New XML format - use the translation system parser
+            return import_translation_file_content(content)
+        
         elif file_path.endswith('.md'):
-            # Parse Markdown for For-Translate format
+            # Old Markdown format - parse for backward compatibility
             if '<!-- type: for-translate -->' not in content:
                 raise ValueError("Unsupported MD format - missing type comment.")
 
@@ -170,13 +174,14 @@ def import_translation_file(self):
                         row_number_str = line[2:-2].strip()
                         try:
                             row_number = int(row_number_str)
+                            row_numbers.append(row_number)
+                            # Save current entry with accumulated row_numbers
+                            file_texts[current_file].append(('\n'.join(current_entry), list(row_numbers)))
+                            current_entry = []
+                            row_numbers = []
                         except ValueError:
-                            row_number = 0  # Default to 0 if parsing fails
-                        row_numbers.append(row_number)
-                        # Save current entry
-                        file_texts[current_file].append(('\n'.join(current_entry), row_numbers))
-                        current_entry = []
-                        row_numbers = []
+                            # Skip invalid row numbers
+                            pass
                 elif current_file is not None:
                     # Skip empty lines between entries
                     if line or current_entry:
@@ -186,29 +191,187 @@ def import_translation_file(self):
             if current_file is not None and current_entry:
                 file_texts[current_file].append(('\n'.join(current_entry), row_numbers))
 
-            # Rebuild translations in original OCR order
-            translation_index = {k: 0 for k in file_texts.keys()}
-            for result in self.ocr_results:
-                filename = result['filename']
-                if filename in file_texts and translation_index[filename] < len(file_texts[filename]):
-                    translated_text, row_numbers = file_texts[filename][translation_index[filename]]
-                    result['text'] = translated_text
-                    result['row_number'] = row_numbers[0]  # Update row number
-                    translation_index[filename] += 1
-                else:
-                    print(f"Warning: No translation found for entry in '{filename}'")
+            # Convert to dictionary format: {filename: {row_number_str: translated_text}}
+            # If an entry has multiple row_numbers, use the first one as the key
+            for filename, entries in file_texts.items():
+                translations[filename] = {}
+                for translated_text, row_nums in entries:
+                    if row_nums:
+                        # Use the first row_number as the key (typically there's only one)
+                        row_number_str = str(row_nums[0])
+                        translations[filename][row_number_str] = translated_text
 
-            self.update_results_table()
-            QMessageBox.information(self, "Success", "Translation imported and updated successfully!")
-
+            return translations
+        
         else:
-            raise ValueError("Unsupported file format. Please provide a JSON or Markdown file.")
-
+            raise ValueError("Unsupported file format. Please provide XML, TXT, or MD file.")
+    
     except Exception as e:
-        QMessageBox.critical(
-            self, "Error",
-            f"Failed to import translation:\n{str(e)}"
+        raise ValueError(f"Failed to parse translation file: {str(e)}")
+
+def import_translation_file(self):
+    """
+    Unified import function that handles both Master and Translation files.
+    Opens file explorer first, then shows confirmation (master) or dialog (translation).
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # Open file explorer first
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import File", QDir.homePath(),
+            "All Supported Files (*.json *.xml *.txt *.md);;JSON Files (*.json);;XML Files (*.xml);;Text Files (*.txt);;Markdown Files (*.md);;All Files (*.*)"
         )
+        
+        if not file_path:
+            return False
+    except Exception as e:
+        import traceback
+        from app.ui.dialogs.error_dialog import ErrorDialog
+        ErrorDialog.critical(
+            self, "File Dialog Error",
+            f"Failed to open file selection dialog:\n{str(e)}",
+            traceback.format_exc()
+        )
+        return False
+    
+    # Determine file type based on extension
+    is_master = file_path.endswith('.json')
+    
+    if is_master:
+        # Master file - show confirmation dialog directly
+        new_ocr_results = import_master_file(self, file_path, skip_confirmation=False)
+        if new_ocr_results is not None:
+            try:
+                # Always replace existing OCR results
+                self.model.ocr_results = new_ocr_results
+                
+                # Reload profiles from the OCR results
+                loaded_profiles = set(["Original"])
+                max_row_num = -1
+                
+                for res in self.model.ocr_results:
+                    if 'row_number' in res:
+                        try:
+                            max_row_num = max(max_row_num, int(float(res['row_number'])))
+                        except (ValueError, TypeError):
+                            pass
+                    if 'translations' in res and isinstance(res['translations'], dict):
+                        for profile_name in res['translations']:
+                            loaded_profiles.add(profile_name)
+                
+                # Update next_global_row_number
+                if max_row_num >= 0:
+                    self.model.next_global_row_number = max_row_num + 1
+                
+                # Replace profiles
+                self.model.profiles = {name: {} for name in loaded_profiles}
+                
+                # Check if current active profile still exists, if not default to "Original"
+                if self.model.active_profile_name not in self.model.profiles:
+                    print(f"Warning: Active profile '{self.model.active_profile_name}' not found in imported data. Defaulting to 'Original'.")
+                    self.model.active_profile_name = "Original"
+                
+                # Emit signal to update UI (profile selector, etc.)
+                self.model.profiles_updated.emit()
+                
+                if hasattr(self, 'update_all_views'):
+                    self.update_all_views()
+                
+                QMessageBox.information(self, "Success", 
+                                      f"Master file imported successfully!\n"
+                                      f"Loaded {len(new_ocr_results)} OCR entries.\n"
+                                      f"Profiles: {', '.join(sorted(self.model.profiles.keys()))}")
+                return True
+            except Exception as e:
+                import traceback
+                from app.ui.dialogs.error_dialog import ErrorDialog
+                ErrorDialog.critical(
+                    self, "Import Processing Error",
+                    f"Failed to process imported master file:\n{str(e)}",
+                    traceback.format_exc()
+                )
+                return False
+        return False
+    else:
+        # Translation file - show import dialog for profile selection
+        try:
+            from app.ui.dialogs.import_export_dialog import ImportDialog
+            from PySide6.QtWidgets import QDialog
+            
+            # Get available profiles
+            available_profiles = list(self.model.profiles.keys())
+            
+            # Show import dialog with file pre-selected
+            dialog = ImportDialog(self, available_profiles)
+            dialog.file_path = file_path
+            dialog.file_path_edit.setText(file_path)
+            
+            # Set default profile name to filename (without extension)
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+            if filename in available_profiles:
+                # If filename matches an existing profile, select it
+                dialog.profile_combo.setCurrentText(filename)
+            else:
+                # If filename doesn't match, keep "Create New Profile" and prefill the name
+                dialog.profile_combo.setCurrentIndex(0)  # "<Create New Profile>"
+                dialog.new_profile_edit.setText(filename)
+            
+            if dialog.exec_() != QDialog.Accepted:
+                return False
+            
+            config = dialog.get_import_config()
+            file_path = config['file_path']
+            
+            try:
+                # Translation file (XML/TXT/MD) - apply to a profile
+                translation_data = import_translation_file_content_only(file_path)
+                if translation_data:
+                    # Get profile name from config
+                    profile_name = config['profile_name']
+                    
+                    if not profile_name:
+                        QMessageBox.warning(self, "Invalid Profile", "Please specify a valid profile name.")
+                        return False
+                    
+                    # Set flag to prevent textChanged events from deleting translations during profile switch
+                    # add_profile switches to the new profile and emits signals that clear highlighters
+                    if hasattr(self, 'results_widget') and self.results_widget:
+                        self.results_widget._is_updating_views = True
+                    
+                    # Apply translation to profile
+                    self.model.add_profile(profile_name, translation_data)
+                    
+                    # Refresh UI
+                    if hasattr(self, 'update_all_views'):
+                        self.update_all_views()
+                    
+                    QMessageBox.information(self, "Success", 
+                                          f"Translation successfully applied to profile:\n'{profile_name}'")
+                    return True
+                return False
+            
+            except ValueError as e:
+                # ValueError from import_translation_file_content_only - show as warning
+                QMessageBox.warning(self, "Import Error", f"Failed to parse translation file:\n{str(e)}")
+                return False
+            except Exception as e:
+                import traceback
+                from app.ui.dialogs.error_dialog import ErrorDialog
+                ErrorDialog.critical(
+                    self, "Import Error", 
+                    f"Failed to import and apply translation file:\n{str(e)}",
+                    traceback.format_exc()
+                )
+                return False
+        except Exception as e:
+            import traceback
+            from app.ui.dialogs.error_dialog import ErrorDialog
+            ErrorDialog.critical(
+                self, "Dialog Error",
+                f"Failed to open import dialog:\n{str(e)}",
+                traceback.format_exc()
+            )
+            return False
 
 def export_rendered_images(self):
     """Export images with applied translations directly from QGraphicsView scenes."""
@@ -283,13 +446,19 @@ def export_rendered_images(self):
         saved_path, success = export_translated_images_to_zip(translated_images, export_path)
 
         if success:
+            # Success message - keep QMessageBox.information for non-error cases
             QMessageBox.information(self, "Success", f"Exported to:\n{saved_path}")
         else:
-            QMessageBox.critical(self, "Error", "Export failed")
+            from app.ui.dialogs.error_dialog import ErrorDialog
+            ErrorDialog.critical(self, "Export Error", "Failed to export rendered images.", None)
     except Exception as e:
-        QMessageBox.critical(self, "Render Error", f"Failed to render image: {str(e)}")
         import traceback
-        traceback.print_exc()
+        from app.ui.dialogs.error_dialog import ErrorDialog
+        ErrorDialog.critical(
+            self, "Render Error", 
+            f"Failed to render images for export:\n{str(e)}",
+            traceback.format_exc()
+        )
     finally:
         for i in range(self.scroll_layout.count()):
             widget = self.scroll_layout.itemAt(i).widget()

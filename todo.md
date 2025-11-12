@@ -1,32 +1,30 @@
 # what i need
 
-## done (milestone 0.2.0 release)
+## done (milestone 0.2.1 release)
 
   #### addition
-  - add context fill.
-  - implement hide text
-  - add ocr override dialog confirmation
-  - add custom state aware button class
+  - custom error msg box
+    - link to github issue report if any error
+  - dedicated import/export dialogs for OCR/translation data
+  - add feature request button on settings
+  - add documentation links
 
   #### fixes
-  - fix long loading time on startup (torch import)
-  - fix stitched img not saved as stitched
-  - fix too much recent project
+  - fix import/export OCR/translation data functionality
+  - fix find and replace bugs :
+    - roman character not working for some reason if there are other profile in other type of character (non roman)
+    - profile creation/switching crashes the app when on find
 
   #### modification
-  - make app sync to be on its own manager
-  - make menu button to be layout class
-  - make further ocr to override old ocr
-  - change translation format to xml like
-  - make manual ocr overlay presistent
+  - make protect original text to be for all edits (not just first edit)
+  - make default profile on translation window to be user edit
 
 ## currently in progress
-  - testing final updater
+  - 
 
 ## not yet started
 
   #### addition
-  - add mica effect
   - add manual textbox insertion
   - implement watermarking
   - textbox styles
@@ -34,18 +32,23 @@
     - add directional blur to typography
     - add drop shadow to both
     - add 
-  - add link to github issues for when there is crash
-    - add issue template
   - 2 pane view of manhwa (for original and translated view side by side)(layers and overlays can be individualy toggle off and on)
   - add tool bar on the right
   - add direct retranslate on main window
+  - add more items for ocr export
+    - ocr tagging
+    - pdf
+    - docs
+  - add window pos and size saves (remember from last session)
+  - theme 
+    - light mode
+    - contrast
+    - background gradient
+  - split ocr result
+  - add z index and reordering of textbox on the same img
 
   #### fixes
   - fix skew/free transform
-  - fix find and replace bugs :
-    - roman character not working for some reason if there are other profile in other type of character (non roman)
-    - profile creation/switching crashes the app when on find
-  - fix import/export plaintext ocr/translation data
 
   #### modification
   - rework how gradient work
@@ -65,6 +68,8 @@
     - free form selection (pen tools/draw)
     - switch on/off from selection
     - undo/redo
-  - 
+  - make font to be from system
   - deprecate result widgets and table (be replaced by direct text editing on image textbox)
     - it should be merged into translation feature cause it still needed there
+  - briefly highlight sync ocr
+  - enhance ocr result merging

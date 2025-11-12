@@ -1,1 +1,0 @@
-from app.core.project_model import ProjectModel

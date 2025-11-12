@@ -3,8 +3,11 @@ import zipfile
 import json
 import tempfile
 import re
+import traceback
+import sys
 from shutil import copyfile, rmtree
 from app.ui.dialogs.project_dialog import NewProjectDialog, ImportWFWFDialog
+from app.ui.dialogs.error_dialog import ErrorDialog
 from PySide6.QtWidgets import QMessageBox, QFileDialog, QDialog, QApplication
 from PySide6.QtCore import QDateTime, QDir, Qt
 
@@ -55,7 +58,9 @@ def new_project(self):
             launch_project(self, project_path)
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create project: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Error", f"Failed to create project: {str(e)}", traceback_text)
 
 def open_project(self):
     file, _ = QFileDialog.getOpenFileName(self, "Open Project", "", "Manga Translation Files (*.mmtl)")
@@ -109,7 +114,9 @@ def import_from_wfwf(self):
             
             launch_project(self, project_path)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create project: {str(e)}")
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            ErrorDialog.critical(self, "Error", f"Failed to create project: {str(e)}", traceback_text)
         finally:
             rmtree(temp_dir)
             if 'corrected_dir' in locals() and os.path.exists(corrected_dir):
@@ -155,7 +162,10 @@ def launch_project(self, mmtl_path):
                 
                 loading_dialog.close()
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to launch project: {str(e)}")
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+                error_message = f"Failed to launch project: {str(e)}"
+                ErrorDialog.critical(self, "Error", error_message, traceback_text)
                 rmtree(temp_dir, ignore_errors=True)
             
             # Clean up the thread
@@ -163,7 +173,7 @@ def launch_project(self, mmtl_path):
         
         def handle_project_error(error_msg):
             loading_dialog.close()
-            QMessageBox.critical(self, "Error", f"Failed to open project:\n{error_msg}")
+            ErrorDialog.critical(self, "Error", f"Failed to open project:\n{error_msg}")
             
             # Clean up the thread
             self.loader_thread.deleteLater()

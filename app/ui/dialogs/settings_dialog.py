@@ -1,14 +1,17 @@
 # settings_dialog.py
 
 import os
+import traceback
+import sys
 from PySide6.QtWidgets import (QDialog, QDoubleSpinBox, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QComboBox, QSpinBox, QDialogButtonBox, QTabWidget,
                              QWidget, QLineEdit, QKeySequenceEdit, QCheckBox,
                              QGroupBox, QPushButton, QLabel, QProgressBar, QMessageBox)
-from PySide6.QtGui import QKeySequence
-from PySide6.QtCore import QSettings
+from PySide6.QtGui import QKeySequence, QDesktopServices
+from PySide6.QtCore import QSettings, QUrl
 from assets import ADVANCED_CHECK_STYLES
 from app.utils.update import UpdateHandler
+from app.ui.dialogs.error_dialog import ErrorDialog
 GEMINI_MODELS_WITH_INFO = [
     ("gemini-2.5-flash", "250 req/day (free tier)"),
     ("gemini-2.5-pro", "100 req/day (free tier)"),
@@ -85,9 +88,36 @@ class SettingsDialog(QDialog):
         self.restart_update_button.clicked.connect(self.apply_update)
         update_button_layout.addWidget(self.restart_update_button)
         
+        # Disable update buttons if running as script
+        is_script = "__nuitka_version__" not in locals()
+        if is_script:
+            self.check_updates_button.setEnabled(False)
+            self.check_updates_button.setToolTip("Updates are only available for compiled versions of the application.")
+            self.download_update_button.setEnabled(False)
+            self.restart_update_button.setEnabled(False)
+        
         update_layout.addLayout(update_button_layout)
         update_group.setLayout(update_layout)
         general_layout.addRow(update_group)
+        
+        # --- FEATURE REQUEST BUTTON + DOCUMENTATION ---
+        feature_request_button = QPushButton("Request a Feature")
+        feature_request_button.clicked.connect(self.open_feature_request)
+        feature_request_button.setToolTip("Open GitHub to submit a feature request")
+
+        doc_button = QPushButton("Read Documentation")
+        doc_button.clicked.connect(self.open_documentation)
+        doc_button.setToolTip("Open online documentation")
+
+        buttons_container = QWidget()
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.addWidget(feature_request_button)
+        buttons_layout.addWidget(doc_button)
+        buttons_container.setLayout(buttons_layout)
+
+        general_layout.addRow("", buttons_container)
+        
         general_tab.setLayout(general_layout)
         self.tab_widget.addTab(general_tab, "General")
 
@@ -218,12 +248,23 @@ class SettingsDialog(QDialog):
 
     def on_update_error(self, message):
         self.update_status_label.setText("Update check failed.")
-        QMessageBox.critical(self, "Update Error", message)
+        ErrorDialog.critical(self, "Update Error", message)
         self.check_updates_button.setEnabled(True)
         self.download_update_button.setEnabled(True)
 
     def apply_update(self):
         self.update_handler.apply_update(self.downloaded_update_path)
+
+    def open_feature_request(self):
+        """Open GitHub new issue page with feature request template"""
+        github_issues_url = "https://github.com/Liiesl/EasyScanlate/issues/new"
+        template_url = f"{github_issues_url}?template=feature_request.md"
+        QDesktopServices.openUrl(QUrl(template_url))
+
+    def open_documentation(self):
+        """Open the online documentation in the default browser"""
+        docs_url = "https://docs.easyscanlate.site/"
+        QDesktopServices.openUrl(QUrl(docs_url))
 
     def accept(self):
         # General

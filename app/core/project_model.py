@@ -21,6 +21,8 @@ class ProjectModel(QObject):
     model_updated = Signal(list)
     # Emitted when the list of profiles changes (new profile added).
     profiles_updated = Signal()
+    # Emitted when a profile is created for a user edit (not programmatic changes like find/replace).
+    profile_created_for_user_edit = Signal()
 
     def __init__(self):
         super().__init__()
@@ -379,11 +381,15 @@ class ProjectModel(QObject):
 
     def get_display_text(self, result: dict) -> str:
         """Gets the text to display for a result based on the active profile."""
+        translations = result.get('translations', {})
+        original_text = result.get('text', '')
+        
         if self.active_profile_name != "Original":
-            edited_text = result.get('translations', {}).get(self.active_profile_name)
+            edited_text = translations.get(self.active_profile_name)
             if edited_text is not None:
                 return edited_text
-        return result.get('text', '')
+        
+        return original_text
         
     def clear_standard_results(self):
         """Removes all non-manual OCR results before a new run."""
@@ -410,32 +416,105 @@ class ProjectModel(QObject):
         affected_filename = new_results[0].get('filename')
         self.model_updated.emit([affected_filename] if affected_filename else [])
 
-    def update_text(self, row_number, new_text: str):
-        """Updates the text for a given row in the active profile."""
+    def _find_existing_user_edit_profile(self):
+        """Finds the first existing user edit profile, or None if none exists.
+        
+        Returns:
+            str or None: The name of the first user edit profile (e.g., "User Edit 1"), or None
+        """
+        # Sort profile names to find the lowest numbered user edit profile
+        user_edit_profiles = []
+        for profile_name in self.profiles.keys():
+            if profile_name.startswith("User Edit "):
+                try:
+                    # Extract the number after "User Edit "
+                    num = int(profile_name.split("User Edit ")[1])
+                    user_edit_profiles.append((num, profile_name))
+                except (ValueError, IndexError):
+                    continue
+        
+        if user_edit_profiles:
+            # Sort by number and return the first one
+            user_edit_profiles.sort(key=lambda x: x[0])
+            return user_edit_profiles[0][1]
+        return None
+
+    def update_text(self, row_number, new_text: str, is_user_edit: bool = True):
+        """Updates the text for a given row in the active profile.
+        
+        Args:
+            row_number: The row number to update
+            new_text: The new text to set
+            is_user_edit: If True, this is a direct user edit (will show profile creation message).
+                         If False, this is a programmatic change (e.g., find/replace) and should not show messages.
+        """
         target_result, _ = self._find_result_by_row_number(row_number)
         if not target_result or target_result.get('is_deleted', False):
             return "Result not found or is deleted.", False
 
-        # If user is editing while in "Original", create a new profile.
+        profile_created = False
         if self.active_profile_name == "Original":
-            self.active_profile_name = "User Edit 1"
-            if self.active_profile_name not in self.profiles:
-                self.profiles[self.active_profile_name] = {}
-                self.profiles_updated.emit() # Signal that the profile list has changed
-                # The view will handle showing the message.
+            existing_user_edit = self._find_existing_user_edit_profile()
+            if existing_user_edit:
+                self.active_profile_name = existing_user_edit
+            else:
+                self.active_profile_name = "User Edit 1"
+                if self.active_profile_name not in self.profiles:
+                    self.profiles[self.active_profile_name] = {}
+                    if is_user_edit:
+                        self.profiles_updated.emit()
+                    profile_created = True
 
         if 'translations' not in target_result:
             target_result['translations'] = {}
 
         original_text = target_result.get('text', '')
+        
+        was_routing_from_original = False
+        existing_user_edit_text = None
+        if self.active_profile_name != "Original" and self.active_profile_name in target_result['translations']:
+            existing_user_edit_text = target_result['translations'][self.active_profile_name]
+            if new_text != existing_user_edit_text:
+                if (new_text.startswith(original_text) or original_text.startswith(new_text) or 
+                    new_text == original_text or 
+                    abs(len(new_text) - len(original_text)) < abs(len(new_text) - len(existing_user_edit_text))):
+                    was_routing_from_original = True
+        
         if new_text == original_text:
-            if self.active_profile_name in target_result['translations']:
-                del target_result['translations'][self.active_profile_name]
+            if self.active_profile_name != "Original" and self.active_profile_name in target_result['translations']:
+                existing_translation = target_result['translations'][self.active_profile_name]
+                if existing_translation != original_text:
+                    del target_result['translations'][self.active_profile_name]
+        elif was_routing_from_original and existing_user_edit_text:
+            user_edit_len = len(existing_user_edit_text)
+            original_len = len(original_text)
+            new_text_len = len(new_text)
+            
+            # Check if restoring deleted content (works for all character types)
+            is_restoring = False
+            if user_edit_len < original_len and new_text_len > user_edit_len:
+                if new_text_len <= original_len:
+                    is_restoring = True
+                elif new_text_len > original_len:
+                    deleted_region_size = original_len - user_edit_len
+                    if (new_text_len - original_len) < deleted_region_size * 0.5:
+                        is_restoring = True
+            
+            if is_restoring:
+                merged_text = existing_user_edit_text
+            elif new_text.startswith(original_text):
+                merged_text = existing_user_edit_text + new_text[len(original_text):]
+            elif original_text.startswith(new_text) and len(existing_user_edit_text) < len(original_text):
+                merged_text = existing_user_edit_text
+            else:
+                merged_text = existing_user_edit_text
+            
+            target_result['translations'][self.active_profile_name] = merged_text
         else:
             target_result['translations'][self.active_profile_name] = new_text
 
         self.model_updated.emit([target_result.get('filename')])
-        return None, True
+        return None, True, profile_created, profile_created and is_user_edit
 
     def delete_row(self, row_number_to_delete):
         """Marks a row as deleted."""
@@ -456,10 +535,17 @@ class ProjectModel(QObject):
             return "Could not find first row to update in data model.", False
         
         if self.active_profile_name == "Original":
-            self.active_profile_name = "User Edit 1"
-            if self.active_profile_name not in self.profiles:
-                self.profiles[self.active_profile_name] = {}
-                self.profiles_updated.emit()
+            # First, check if there's already a user edit profile
+            existing_user_edit = self._find_existing_user_edit_profile()
+            if existing_user_edit:
+                # Route to existing user edit profile
+                self.active_profile_name = existing_user_edit
+            else:
+                # Create a new user edit profile
+                self.active_profile_name = "User Edit 1"
+                if self.active_profile_name not in self.profiles:
+                    self.profiles[self.active_profile_name] = {}
+                    self.profiles_updated.emit()
 
         # Update confidence on the original record, but store combined text in the profile
         self.ocr_results[first_result_index]['confidence'] = min_confidence
