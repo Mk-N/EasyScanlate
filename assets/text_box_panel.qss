@@ -1,0 +1,51 @@
+#TextBoxStylePanel {
+    background-color: #2A2A2A; 
+    border-left: 1px solid #3A3A3A;
+    border-right: 1px solid #1A1A1A;
+}
+#panelTitle {
+    color: #FFFFFF;
+    font-size: 20px;
+    font-weight: bold;
+}
+#headerDivider {
+    border-color: #3A3A3A;
+}
+#styleScrollArea {
+        background-color: transparent;
+}
+#styleGroup {
+    color: #FFFFFF;
+    font-weight: bold;
+    border: 1px solid #3A3A3A;
+    border-radius: 10px;
+    margin-top: 15px;
+    padding-top: 15px;
+    font-size: 20px;
+}
+#styleGroup::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top center;
+    padding: 0 8px;
+    background-color: #2A2A2A;
+}
+#buttonContainer {
+    background-color: #2A2A2A;
+}
+#resetButton, #applyButton {
+        background-color: #3A3A3A;
+        color: #FFFFFF;
+        border: none;
+        padding: 10px;
+        border-radius: 20px;
+        font-size: 20px;
+}
+#addPresetButton { 
+    background-color: #333; 
+    border: 1px solid #555; 
+    border-radius: 3px; 
+}
+#addPresetButton:hover { 
+    background-color: #444; 
+    border-color: #666; 
+}

@@ -1,0 +1,49 @@
+QDialog {
+    background-color: var(--surface);
+    color: var(--text);
+    font-size: var(--font_size_small);
+}
+QLineEdit {
+    background-color: var(--primary);
+    padding: var(--padding_large);
+    border: 1px solid var(--secondary);
+    border-radius: var(--border_radius_small);
+    margin: var(--spacing_small) 0;
+}
+QLabel {
+    color: var(--septenary);
+}
+QListWidget {
+    background-color: var(--primary);
+    color: var(--text);
+    border-radius: var(--border_radius_small);
+    padding: var(--padding_medium);
+}
+QPushButton {
+    background-color: var(--secondary);
+    color: var(--text);
+    padding: var(--padding_large) var(--spacing_xxlarge);
+    border: none;
+    border-radius: var(--border_radius_small);
+    min-width: 80px;
+}
+QPushButton:hover {
+    background-color: var(--duodenary);
+}
+QPushButton:disabled {
+    background-color: var(--primary);
+    color: var(--octenary);
+}
+QProgressBar {
+    border: 1px solid var(--secondary);
+    border-radius: var(--border_radius_small);
+    text-align: center;
+    height: 20px;
+}
+QProgressBar::chunk {
+    background-color: var(--progress_chunk);
+    width: 1px;
+}
+QStatusBar {
+    color: var(--septenary);
+}

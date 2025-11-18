@@ -1,0 +1,70 @@
+/* Find/Replace Stylesheet */
+/* References variables from variables.qssvars */
+
+#FindReplaceWidget {
+    background-color: #2D2D2D;
+    border-bottom: 1px solid #606060;
+    padding: 4px 8px;
+}
+/* Input fields */
+#FindReplaceWidget QLineEdit {
+    background-color: #303030;
+    color: #FFFFFF;
+    border: 1px solid #606060;
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 15px;
+    min-height: 28px;
+}
+/* Base style for all icon buttons within the widget */
+#FindReplaceWidget QPushButton {
+    background-color: transparent;
+    color: #FFFFFF;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 5px;
+    min-width: 30px; max-width: 30px;
+    min-height: 30px; max-height: 30px;
+}
+#FindReplaceWidget QPushButton:hover {
+    background-color: #454545;
+    border: 1px solid #606060;
+}
+#FindReplaceWidget QPushButton:pressed {
+    background-color: #252525;
+}
+#FindReplaceWidget QPushButton:disabled {
+    color: #777777;
+    background-color: transparent;
+    border-color: transparent;
+}
+/* Style for checkable filter buttons when checked */
+#FindReplaceWidget QPushButton:checked {
+    background-color: #505050;
+    border: 1px solid #0090FF;
+    color: #FFFFFF;
+}
+/* Keep checked style on hover */
+#FindReplaceWidget QPushButton:checked:hover {
+    background-color: #505050;
+    border: 1px solid #0090FF;
+}
+/* Specific override for Close button hover */
+#FindReplaceWidget QPushButton#CloseButton:hover {
+    background-color: #c42b1c;
+    color: #FFFFFF;
+    border: 1px solid #c42b1c;
+}
+/* Match count label */
+#FindReplaceWidget QLabel#MatchCountLabel {
+    color: #E0E0E0;
+    font-size: 14px;
+    padding: 0 10px;
+    min-width: 80px;
+    background-color: transparent;
+}
+/* Container for replace row */
+#FindReplaceWidget QWidget#ReplaceRowWidget {
+    background-color: transparent;
+    padding-top: 5px;
+}
