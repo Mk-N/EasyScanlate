@@ -1,0 +1,33 @@
+#ManualOCROverlay { 
+    background-color: rgba(0, 0, 0, 0.7); 
+    border-radius: 5px; 
+}
+QPushButton { 
+    background-color: #4CAF50; 
+    border: none; 
+    color: white; 
+    padding: 5px 10px; 
+    text-align: center; 
+    font-size: 14px; 
+    margin: 2px; 
+    border-radius: 3px; 
+}
+QPushButton:hover { 
+    background-color: #45a049; 
+}
+QPushButton#CancelButton { 
+    background-color: #f44336; 
+}
+QPushButton#CancelButton:hover { 
+    background-color: #da190b; 
+}
+QPushButton#ResetButton { 
+    background-color: #ff9800; 
+}
+QPushButton#ResetButton:hover { 
+    background-color: #e68a00; 
+}
+QLabel { 
+    color: white; 
+    font-size: 12px; 
+}
