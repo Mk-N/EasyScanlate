@@ -80,6 +80,71 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         main_widget.setObjectName("CentralWidget")
         main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins for cleaner look
+        main_layout.setSpacing(0)
+
+        self.scroll_area = CustomScrollArea(main_window=self)
+        
+        # Create vertical toolbar (VS Code style)
+        self.vertical_toolbar = QWidget()
+        self.vertical_toolbar.setObjectName("VerticalToolBar")
+        self.vertical_toolbar.setFixedWidth(50)  # Fixed width like VS Code
+        vertical_toolbar_layout = QVBoxLayout(self.vertical_toolbar)
+        vertical_toolbar_layout.setContentsMargins(5, 10, 5, 10)
+        vertical_toolbar_layout.setSpacing(10)
+        self.vertical_toolbar.setStyleSheet("""
+            QWidget#VerticalToolBar {
+                background-color: #2d2d30;
+                border-right: 1px solid #3e3e42;
+            }
+            QPushButton {
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+                background-color: transparent;
+            }
+            QPushButton:hover {
+                background-color: #3e3e42;
+            }
+            QPushButton:checked {
+                background-color: #007acc;
+            }
+            QPushButton:disabled {
+                background-color: transparent;
+                opacity: 0.5;
+            }
+        """)
+        
+        # Settings button (moved from settings_layout)
+        self.btn_settings = QPushButton(qta.icon('fa5s.cog', color='white'), "")
+        self.btn_settings.setFixedSize(40, 40)
+        self.btn_settings.setToolTip("Settings")
+        self.btn_settings.clicked.connect(self.show_settings_dialog)
+        vertical_toolbar_layout.addWidget(self.btn_settings)
+        
+        # Spacer after settings for visual separation
+        vertical_toolbar_layout.addSpacing(10)
+        
+        # Manual OCR button (moved from button_layout)
+        self.btn_manual_ocr = QPushButton(qta.icon('fa5s.crop-alt', color='white'), "")
+        self.btn_manual_ocr.setFixedSize(40, 40)
+        self.btn_manual_ocr.setToolTip("Manual OCR Mode")
+        self.btn_manual_ocr.setCheckable(True)
+        self.btn_manual_ocr.toggled.connect(self.scroll_area.manual_ocr_handler.toggle_mode)
+        self.btn_manual_ocr.setEnabled(False)  # Keep original enabled state
+        vertical_toolbar_layout.addWidget(self.btn_manual_ocr)
+        
+        # Translation button (moved from bottom_controls_layout)
+        self.btn_translate = QPushButton(qta.icon('fa5s.language', color='white'), "")
+        self.btn_translate.setFixedSize(40, 40)
+        self.btn_translate.setToolTip("AI Translation")
+        self.btn_translate.clicked.connect(self.start_translation)
+        vertical_toolbar_layout.addWidget(self.btn_translate)
+
+        # Add stretch to push buttons to top
+        vertical_toolbar_layout.addStretch()
+
+        # Rest of the UI setup continues...
         self.colors = COLORS
         self.setStyleSheet(MAIN_STYLESHEET)
         self.update_profile_selector()
@@ -87,18 +152,13 @@ class MainWindow(QMainWindow):
         left_panel = QVBoxLayout()
         left_panel.setSpacing(20)
 
+        # MODIFIED: settings_layout now only contains progress bar
         settings_layout = QHBoxLayout()
-        self.btn_settings = QPushButton(qta.icon('fa5s.cog', color='white'), "")
-        self.btn_settings.setFixedSize(50, 50)
-        self.btn_settings.clicked.connect(self.show_settings_dialog)
-        settings_layout.addWidget(self.btn_settings)
-
+        # Remove the btn_settings from here
         self.ocr_progress = CustomProgressBar()
         self.ocr_progress.setFixedHeight(20)
         settings_layout.addWidget(self.ocr_progress, 1)
         left_panel.addLayout(settings_layout)
-
-        self.scroll_area = CustomScrollArea(main_window=self)
         
         self.scroll_content = QWidget()
         self.scroll_content.setStyleSheet("background-color: transparent;")
@@ -120,20 +180,15 @@ class MainWindow(QMainWindow):
         self.btn_process = QPushButton(qta.icon('fa5s.magic', color='white'), "Process OCR")
         self.btn_process.setFixedWidth(160)
         self.btn_process.clicked.connect(self.start_ocr)
-        self.btn_process.setEnabled(False)  # Disabled - OCR functionality removed
+        self.btn_process.setEnabled(False)
         button_layout.addWidget(self.btn_process)
         self.btn_stop_ocr = QPushButton(qta.icon('fa5s.stop', color='white'), "Stop OCR")
         self.btn_stop_ocr.setFixedWidth(160)
         self.btn_stop_ocr.clicked.connect(self.stop_ocr)
         self.btn_stop_ocr.setVisible(False)
-        self.btn_stop_ocr.setEnabled(False)  # Disabled - OCR functionality removed
+        self.btn_stop_ocr.setEnabled(False)
         button_layout.addWidget(self.btn_stop_ocr)
-        self.btn_manual_ocr = QPushButton(qta.icon('fa5s.crop-alt', color='white'), "Manual OCR")
-        self.btn_manual_ocr.setFixedWidth(160)
-        self.btn_manual_ocr.setCheckable(True)
-        self.btn_manual_ocr.toggled.connect(self.scroll_area.manual_ocr_handler.toggle_mode)
-        self.btn_manual_ocr.setEnabled(False)  # Disabled - OCR functionality removed
-        button_layout.addWidget(self.btn_manual_ocr)
+        # REMOVED: btn_manual_ocr from button_layout
         
         file_button_layout = QHBoxLayout()
         file_button_layout.setAlignment(Qt.AlignRight)
@@ -144,6 +199,14 @@ class MainWindow(QMainWindow):
         self.profile_selector.setToolTip("Switch between different text profiles (e.g., Original, User Edits, Translations).")
         self.profile_selector.activated.connect(self.on_profile_selected)
         file_button_layout.addWidget(self.profile_selector)
+
+        # Chat toggle button (between profile selector and action menu)
+        self.btn_chat_toggle = QPushButton(qta.icon('fa5s.comments', color='white'), "")
+        self.btn_chat_toggle.setFixedSize(40, 40)
+        self.btn_chat_toggle.setToolTip("Toggle Chat Widget")
+        self.btn_chat_toggle.setCheckable(True)
+        self.btn_chat_toggle.clicked.connect(self.toggle_chat)
+        file_button_layout.addWidget(self.btn_chat_toggle)
 
         self.btn_import_export_menu = QPushButton(qta.icon('fa5s.bars', color='white'), "")
         self.btn_import_export_menu.setFixedWidth(60)
@@ -158,16 +221,16 @@ class MainWindow(QMainWindow):
         
         # Style panel - always visible above results with resizable splitter
         self.style_panel = TextBoxStylePanel(default_style=DEFAULT_TEXT_STYLE)
-        self.style_panel.setMinimumHeight(70)  # Reduced minimum height
-        self.style_panel.setMaximumHeight(400)  # Maximum height to prevent excessive size
+        self.style_panel.setMinimumHeight(70)
+        self.style_panel.setMaximumHeight(400)
         
         # Create vertical splitter for resizable layout
         right_splitter = QSplitter(Qt.Vertical)
         right_splitter.addWidget(self.style_panel)
         right_splitter.addWidget(self.results_widget)
-        right_splitter.setStretchFactor(0, 0)  # Style panel doesn't stretch
-        right_splitter.setStretchFactor(1, 1)  # Results widget stretches
-        right_splitter.setHandleWidth(5)  # Make splitter handle more visible
+        right_splitter.setStretchFactor(0, 0)
+        right_splitter.setStretchFactor(1, 1)
+        right_splitter.setHandleWidth(5)
 
         # Find/replace widget
         self.find_replace_widget = FindReplaceWidget(self)
@@ -178,7 +241,8 @@ class MainWindow(QMainWindow):
         # Create translation chat component
         self.translation_chat = TranslationChatWidget()
         self.translation_chat.translation_complete.connect(self.handle_translation_completed)
-        
+        self.translation_chat.hide()  # Hide by default
+
         # Initialize translation chat with current data
         self._update_translation_chat_data()
         
@@ -186,16 +250,13 @@ class MainWindow(QMainWindow):
         content_splitter = QSplitter(Qt.Horizontal)
         content_splitter.addWidget(right_splitter)
         content_splitter.addWidget(self.translation_chat)
-        content_splitter.setStretchFactor(0, 2)  # Results/style panel gets more space
-        content_splitter.setStretchFactor(1, 1)  # Translation chat gets less space
+        content_splitter.setStretchFactor(0, 2)
+        content_splitter.setStretchFactor(1, 1)
         content_splitter.setHandleWidth(5)
         right_panel.addWidget(content_splitter, 1)
 
         bottom_controls_layout = QHBoxLayout()
-        self.btn_translate = QPushButton(qta.icon('fa5s.language', color='white'), "AI Translation")
-        self.btn_translate.clicked.connect(self.start_translation)
-        bottom_controls_layout.addWidget(self.btn_translate)
-
+        # REMOVED: btn_translate from bottom_controls_layout
         self.advanced_mode_check = QCheckBox("Advanced Mode")
         self.advanced_mode_check.setStyleSheet(ADVANCED_CHECK_STYLES)
         self.advanced_mode_check.setChecked(False)
@@ -215,7 +276,10 @@ class MainWindow(QMainWindow):
         splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
 
-        main_layout.addWidget(splitter)
+        # MODIFIED: Add toolbar and splitter to main layout
+        main_layout.addWidget(self.vertical_toolbar)  # Add vertical toolbar first
+        main_layout.addWidget(splitter)  # Then the main content splitter
+
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
 
@@ -290,6 +354,15 @@ class MainWindow(QMainWindow):
         else:
             self.find_replace_widget.raise_()
             self.find_replace_widget.show()
+
+    def toggle_chat(self):
+        """Toggle the visibility of the translation chat widget."""
+        if self.translation_chat.isVisible():
+            self.translation_chat.hide()
+            self.btn_chat_toggle.setChecked(False)
+        else:
+            self.translation_chat.show()
+            self.btn_chat_toggle.setChecked(True)
 
     def update_find_shortcut(self):
         shortcut = self.settings.value("find_shortcut", "Ctrl+F")

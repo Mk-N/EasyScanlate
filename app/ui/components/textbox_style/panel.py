@@ -69,8 +69,8 @@ class TextBoxStylePanel(QWidget):
     def init_ui(self):
         """Initializes the main panel UI with 2-row layout: style config on top, presets on bottom."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(15, 15, 15, 0)
+        main_layout.setSpacing(0)
         main_layout.setAlignment(Qt.AlignTop)
 
         # --- Header ---
@@ -130,7 +130,7 @@ class TextBoxStylePanel(QWidget):
         # Row 2: Presets (minimal layout)
         presets_widget = QWidget()
         presets_layout = QVBoxLayout(presets_widget)
-        presets_layout.setContentsMargins(0, 5, 0, 0)
+        presets_layout.setContentsMargins(0, 0, 0, 0)
         presets_layout.setSpacing(5)
         
         presets_label = QLabel("Presets")
